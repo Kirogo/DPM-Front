@@ -63,7 +63,7 @@ interface ReviewState {
 const tabs = [
   { id: 'overview', label: 'Overview', icon: FiInfo },
   { id: 'site-visit', label: 'Site Visit', icon: FiMapPin },
-  { id: 'financial', label: 'Financial', icon: FiDollarSign },
+  { id: 'financial', label: 'Financial', icon: FiBriefcase },
   { id: 'documents', label: 'Documents', icon: FiFileText },
   { id: 'photos', label: 'Photos', icon: FiCamera },
   { id: 'audit', label: 'Audit', icon: FiClipboard },
@@ -533,7 +533,7 @@ export const QSReviewDetailPage: React.FC = () => {
     <div className="space-y-6 bg-white">
       <div>
         <h2 className="text-xs font-semibold text-[#677D6A] uppercase tracking-wider mb-3 flex items-center gap-2">
-          <FiDollarSign className="w-3.5 h-3.5" />
+          <FiBriefcase className="w-3.5 h-3.5" />
           Financial Summary
         </h2>
         <div className="grid grid-cols-2 gap-4">

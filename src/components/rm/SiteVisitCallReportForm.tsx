@@ -5,32 +5,74 @@ import {
   SiteVisitCallReportForm,
   SiteVisitSubmittedDocs,
 } from '../../types/checklist.types'
-import { useUploadRmChecklistPhotoMutation, useUploadRmChecklistDocumentMutation } from '@/services/api/checklistsApi'
-import { FileText, Upload, X, File } from 'lucide-react'
+import { useUploadRmChecklistDocumentMutation, useUploadRmChecklistPhotoMutation } from '@/services/api/checklistsApi'
+import { FileText, Upload, X, File, CheckCircle, AlertCircle } from 'lucide-react'
 
 type Props = {
   value: SiteVisitCallReportForm
   onChange: (value: SiteVisitCallReportForm) => void
   activeStep?: number
-  isReadOnly?: boolean // Add this
+  isReadOnly?: boolean
 }
 
-// REDUCED PADDING: Changed from p-4 md:p-5 to p-3 md:p-4
-const pageCardClass =
-  'rounded-lg border border-gray-200 bg-white p-3 md:p-4 space-y-3' 
+// Helper function to format filename - clean and minimal
+const formatFileName = (fileName: string): string => {
+  if (!fileName) return ''
+  
+  // Extract the original filename without the timestamp prefix
+  // The pattern is: documenttype-YYYYMMDDHHMMSS-randomstring-originalname.ext
+  const parts = fileName.split('-')
+  
+  // If it's our generated format (has timestamp and random string)
+  if (parts.length >= 4) {
+    // The original name is everything after the random string
+    // Skip: documenttype, timestamp, randomstring
+    const originalNameParts = parts.slice(3)
+    const originalName = originalNameParts.join('-')
+    
+    // Clean up the original name
+    if (originalName) {
+      // Remove file extension for display
+      const nameWithoutExt = originalName.replace(/\.[^/.]+$/, '')
+      
+      // Truncate if too long (max 20 chars)
+      if (nameWithoutExt.length > 20) {
+        return nameWithoutExt.substring(0, 18) + '…'
+      }
+      return nameWithoutExt
+    }
+  }
+  
+  // If it's not our format, just truncate the whole thing
+  const nameWithoutExt = fileName.replace(/\.[^/.]+$/, '')
+  if (nameWithoutExt.length > 20) {
+    return nameWithoutExt.substring(0, 18) + '…'
+  }
+  return nameWithoutExt
+}
 
+// Helper to get file extension
+const getFileExtension = (fileName: string): string => {
+  const match = fileName.match(/\.[^/.]+$/)
+  return match ? match[0].toLowerCase() : ''
+}
+
+// Get file icon based on extension
+const getFileIcon = (fileName: string) => {
+  const ext = getFileExtension(fileName).toLowerCase()
+  if (['.pdf'].includes(ext)) return '📄'
+  if (['.doc', '.docx'].includes(ext)) return '📝'
+  if (['.xls', '.xlsx'].includes(ext)) return '📊'
+  if (['.jpg', '.jpeg', '.png', '.gif'].includes(ext)) return '🖼️'
+  return '📎'
+}
+
+const pageCardClass = 'rounded-lg border border-gray-200 bg-white p-3 md:p-4 space-y-3'
 const labelClass = 'block text-xs font-medium text-gray-700 mb-1'
-const inputClass =
-  'w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30 focus:border-[#D4AF37]'
+const inputClass = 'w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30 focus:border-[#D4AF37]'
 const textareaClass = `${inputClass} min-h-[80px]`
 
-const updatePhotoList = (list: string[], index: number, next: string): string[] => {
-  const copy = [...list]
-  copy[index] = next
-  return copy
-}
-
-// DocumentItem component
+// DocumentItem component - UPDATED with clean filename display
 const DocumentItem: React.FC<{
   label: string
   documentKey: keyof Pick<SiteVisitSubmittedDocs, 
@@ -49,6 +91,17 @@ const DocumentItem: React.FC<{
   const selection = value[documentKey] as string || ''
   const fileUrl = value[`${documentKey}File` as keyof SiteVisitSubmittedDocs] as string || ''
   const reason = value[`${documentKey}Reason` as keyof SiteVisitSubmittedDocs] as string || ''
+
+  // Extract filename from URL
+  const getFileNameFromUrl = (url: string): string => {
+    if (!url) return ''
+    const parts = url.split('/')
+    return parts[parts.length - 1]
+  }
+
+  const fileName = fileUrl ? getFileNameFromUrl(fileUrl) : ''
+  const displayName = formatFileName(fileName)
+  const fileIcon = getFileIcon(fileName)
 
   const handleFileUpload = async (file: File) => {
     try {
@@ -73,11 +126,11 @@ const DocumentItem: React.FC<{
 
   return (
     <div className="border border-gray-200 rounded-lg p-3 space-y-3">
-      {/* Document Title - Bolder and left aligned */}
-      <h5 className="text-sm text-gray-900">{label}</h5>
+      {/* Document Title */}
+      <h5 className="text-sm font-medium text-gray-900">{label}</h5>
       
       <div className="flex flex-col md:flex-row md:items-start gap-3">
-        {/* Selection Dropdown - Full width on mobile, 1/3 on desktop */}
+        {/* Selection Dropdown */}
         <div className="w-full md:w-1/3">
           <select 
             className={`${inputClass} ${isReadOnly ? 'bg-gray-50 cursor-not-allowed' : ''}`}
@@ -91,49 +144,65 @@ const DocumentItem: React.FC<{
           </select>
         </div>
 
-        {/* Conditional UI based on selection - Full width on mobile */}
+        {/* Conditional UI based on selection */}
         <div className="flex-1 w-full">
           {selection === 'Yes' && (
             <div className="space-y-2">
               {fileUrl ? (
                 <div className="flex items-center justify-between bg-gray-50 p-2 rounded-md">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <File className="w-4 h-4 text-[#40534C] flex-shrink-0" />
-                    <a 
-                      href={fileUrl} 
-                      target="_blank" 
-                      rel="noreferrer"
-                      className="text-xs text-blue-600 hover:underline truncate"
-                    >
-                      {fileUrl.split('/').pop() || 'View Document'}
-                    </a>
+                    <span className="text-base">{fileIcon}</span>
+                    <div className="flex flex-col min-w-0">
+                      <a 
+                        href={fileUrl} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="text-xs text-blue-600 hover:underline truncate font-medium"
+                        title={fileName} // Show full name on hover
+                      >
+                        {displayName}
+                      </a>
+                      <span className="text-[8px] text-gray-400">
+                        {getFileExtension(fileName)}
+                      </span>
+                    </div>
                   </div>
                   {!isReadOnly && (
                     <button
                       type="button"
                       onClick={handleRemoveFile}
-                      className="text-red-500 hover:text-red-700 flex-shrink-0 ml-2"
+                      className="text-red-500 hover:text-red-700 flex-shrink-0 ml-2 p-1 rounded-full hover:bg-red-50"
+                      title="Remove file"
                     >
-                      <X className="w-4 h-4" />
+                      <X className="w-3 h-3" />
                     </button>
                   )}
                 </div>
               ) : !isReadOnly ? (
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                  <input
-                    type="file"
-                    accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                    className="block w-full text-xs text-gray-700 file:mr-3 file:rounded-md file:border-0 file:bg-[#D6BD98]/20 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-[#40534C] hover:file:bg-[#D6BD98]/30"
-                    onChange={(event) => {
-                      const selected = event.target.files?.[0]
-                      if (selected) {
-                        handleFileUpload(selected)
-                      }
-                    }}
-                    disabled={isUploading || uploading}
-                  />
+                  <label className="relative cursor-pointer">
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                      className="sr-only"
+                      onChange={(event) => {
+                        const selected = event.target.files?.[0]
+                        if (selected) {
+                          handleFileUpload(selected)
+                        }
+                      }}
+                      disabled={isUploading || uploading}
+                    />
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#D6BD98]/10 text-[#40534C] rounded-md text-xs hover:bg-[#D6BD98]/20 transition-colors">
+                      <Upload className="w-3 h-3" />
+                      Choose file
+                    </span>
+                  </label>
                   {(isUploading || uploading) && (
-                    <span className="text-xs text-[#D4AF37] whitespace-nowrap">Uploading...</span>
+                    <span className="text-xs text-[#D4AF37] flex items-center gap-1">
+                      <span className="animate-spin">⏳</span>
+                      Uploading...
+                    </span>
                   )}
                 </div>
               ) : (
@@ -197,7 +266,6 @@ const PhotoGrid: React.FC<{
       <h4 className="text-sm font-semibold text-gray-900">{title}</h4>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {values.map((photoUrl, index) => (
-          // REDUCED PADDING: Changed from p-3 to p-2
           <div key={`${title}-${index}`} className={`rounded-md border border-gray-200 p-2 space-y-2 ${isReadOnly ? 'bg-gray-50' : ''}`}>
             <label className={labelClass}>Photo {index + 1}</label>
 
@@ -206,7 +274,7 @@ const PhotoGrid: React.FC<{
                 <img
                   src={photoUrl}
                   alt={`${title} ${index + 1}`}
-                  className="w-full h-32 object-cover rounded-md border border-gray-200" // REDUCED HEIGHT: from h-36 to h-32
+                  className="w-full h-32 object-cover rounded-md border border-gray-200"
                 />
                 <a
                   href={photoUrl}
@@ -233,28 +301,43 @@ const PhotoGrid: React.FC<{
             )}
 
             {!isReadOnly && !photoUrl && (
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                className="block w-full text-xs text-gray-700 file:mr-3 file:rounded-md file:border-0 file:bg-secondary-100 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-secondary-700"
-                onChange={(event) => {
-                  const selected = event.target.files?.[0]
-                  if (selected) {
-                    void handleFileUpload(selected, index)
-                  }
-                }}
-                disabled={isUploading}
-              />
+              <div className="flex items-center justify-center">
+                <label className="relative cursor-pointer w-full">
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="sr-only"
+                    onChange={(event) => {
+                      const selected = event.target.files?.[0]
+                      if (selected) {
+                        void handleFileUpload(selected, index)
+                      }
+                    }}
+                    disabled={isUploading}
+                  />
+                  <span className="inline-flex items-center justify-center gap-1 w-full px-2 py-1.5 bg-[#D6BD98]/10 text-[#40534C] rounded-md text-xs hover:bg-[#D6BD98]/20 transition-colors">
+                    <Upload className="w-3 h-3" />
+                    Upload
+                  </span>
+                </label>
+              </div>
             )}
 
             {uploadingIndex === index && (
-              <p className="text-xs text-[#D4AF37]">Uploading...</p>
+              <p className="text-xs text-[#D4AF37] text-center">Uploading...</p>
             )}
           </div>
         ))}
       </div>
     </section>
   )
+}
+
+// Helper function for photo list updates
+const updatePhotoList = (list: string[], index: number, next: string): string[] => {
+  const copy = [...list]
+  copy[index] = next
+  return copy
 }
 
 // Step 1: Customer Info Component
@@ -264,7 +347,7 @@ const CustomerInfoSection: React.FC<{
   isReadOnly?: boolean;
 }> = ({ value, onChange, isReadOnly = false }) => {
   return (
-    <div className="space-y-3"> {/* REDUCED: from space-y-4 to space-y-3 */}
+    <div className="space-y-3">
       <section className={pageCardClass}>
         <h4 className="text-sm font-semibold text-gray-900">Customer Information</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -345,7 +428,7 @@ const SiteVisitSection: React.FC<{
   }, [value.drawnFundsD1, value.drawnFundsD2, value.constructionLoanAmount, isReadOnly])
 
   return (
-    <div className="space-y-3"> {/* REDUCED: from space-y-4 to space-y-3 */}
+    <div className="space-y-3">
       {/* Visit Details */}
       <section className={pageCardClass}>
         <h4 className="text-sm font-semibold text-gray-900">Visit Details</h4>
@@ -543,7 +626,7 @@ const ProjectInfoSection: React.FC<{
   isReadOnly?: boolean;
 }> = ({ value, onChange, isReadOnly = false }) => {
   return (
-    <div className="space-y-3"> {/* REDUCED: from space-y-4 to space-y-3 */}
+    <div className="space-y-3">
       {/* Site Visit Objectives */}
       <section className={pageCardClass}>
         <h4 className="text-sm font-semibold text-gray-900">Site Visit Objectives</h4>
@@ -662,7 +745,7 @@ const ProjectInfoSection: React.FC<{
   )
 }
 
-// Step 4: Documents Component
+// Step 4: Documents Component - UPDATED with clean filenames
 const DocumentsSection: React.FC<{
   value: SiteVisitCallReportForm;
   onChange: (field: keyof SiteVisitCallReportForm, value: any) => void;
@@ -797,7 +880,7 @@ const PhotosSection: React.FC<{
   isReadOnly?: boolean;
 }> = ({ value, onChange, isReadOnly = false }) => {
   return (
-    <div className="space-y-3"> {/* REDUCED: from space-y-4 to space-y-3 */}
+    <div className="space-y-3">
       <PhotoGrid
         title="Progress Photos"
         sectionKey="progress-page-3"

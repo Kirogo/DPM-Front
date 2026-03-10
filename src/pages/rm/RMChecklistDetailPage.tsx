@@ -4,7 +4,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Card } from '@/components/common/Card'
 import {
   useGetChecklistByIdQuery,
-  useUpdateRmChecklistMutation
+  useUpdateRmChecklistMutation,
+  useDeleteRmChecklistMutation // IMPORT the delete mutation
 } from '@/services/api/checklistsApi'
 import { SiteVisitCallReportForm } from '@/types/checklist.types'
 import { useAuth } from '@/hooks/useAuth'
@@ -35,7 +36,8 @@ import {
   ListCheck,
   MessageCircle,
   Download,
-  Eye
+  Eye,
+  Trash2
 } from 'lucide-react'
 
 // Initial empty form state
@@ -181,14 +183,6 @@ const getValue = (obj: any, key: string): any => {
                 key === 'callReportNo' ? 'CallReportNo' : key
   if (obj[exactDtoKey] !== undefined && obj[exactDtoKey] !== null) return obj[exactDtoKey]
 
-  // Check nested properties
-  for (const k in obj) {
-    if (typeof obj[k] === 'object' && obj[k] !== null) {
-      const nested = getValue(obj[k], key)
-      if (nested !== undefined) return nested
-    }
-  }
-
   return undefined
 }
 
@@ -244,6 +238,12 @@ const isReadOnlyStatus = (status: string): boolean => {
          lowerStatus === 'underreview'
 }
 
+// Function to check if report can be deleted (only Pending and Draft)
+const canDeleteReport = (status: string): boolean => {
+  const lowerStatus = status?.toLowerCase()
+  return lowerStatus === 'pending' || lowerStatus === 'draft'
+}
+
 export const RMChecklistDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -253,6 +253,7 @@ export const RMChecklistDetailPage: React.FC = () => {
   const [activeStep, setActiveStep] = useState(1)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSavingDraft, setIsSavingDraft] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [isDownloadingPDF, setIsDownloadingPDF] = useState(false)
   const [formData, setFormData] = useState<SiteVisitCallReportForm>(initialFormState)
   const [apiError, setApiError] = useState<string | null>(null)
@@ -260,6 +261,7 @@ export const RMChecklistDetailPage: React.FC = () => {
   const [isLoadingComments, setIsLoadingComments] = useState(false)
   const [redirectAttempted, setRedirectAttempted] = useState(false)
   const [reportStatus, setReportStatus] = useState<string>('pending')
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const autoSaveTimer = useRef<NodeJS.Timeout>()
 
@@ -270,6 +272,7 @@ export const RMChecklistDetailPage: React.FC = () => {
   })
 
   const [updateChecklist] = useUpdateRmChecklistMutation()
+  const [deleteChecklist] = useDeleteRmChecklistMutation() // Initialize delete mutation
 
   // Fetch comments
   useEffect(() => {
@@ -316,9 +319,7 @@ export const RMChecklistDetailPage: React.FC = () => {
       setReportStatus(extractedStatus)
       
       console.log('Extracted status:', extractedStatus);
-      console.log('Status from direct property:', checklist.status);
-      console.log('Status from Status property:', checklist.Status);
-      console.log('Status from getValue:', getValue(checklist, 'status'));
+      console.log('Can delete?', canDeleteReport(extractedStatus));
 
       // Try all possible locations for form data
       const possibleFormData = [
@@ -472,6 +473,31 @@ export const RMChecklistDetailPage: React.FC = () => {
       }
     } finally {
       setIsSavingDraft(false);
+    }
+  }
+
+  const handleDeleteReport = async () => {
+    if (!id) return
+
+    // Double-check that report can be deleted
+    if (!canDeleteReport(reportStatus)) {
+      toast.error('This report cannot be deleted')
+      setShowDeleteConfirm(false)
+      return
+    }
+
+    setIsDeleting(true)
+    try {
+      console.log('Deleting report with ID:', id)
+      await deleteChecklist(id).unwrap()
+      toast.success('Report deleted successfully')
+      navigate('/rm/reports')
+    } catch (error) {
+      console.error('Delete error:', error)
+      toast.error('Failed to delete report')
+    } finally {
+      setIsDeleting(false)
+      setShowDeleteConfirm(false)
     }
   }
 
@@ -637,6 +663,16 @@ export const RMChecklistDetailPage: React.FC = () => {
   // Determine if form should be editable
   const isEditable = !isReadOnlyStatus(reportStatus)
 
+  // Determine if delete button should be shown (only for Pending and Draft)
+  const showDeleteButton = canDeleteReport(reportStatus) && isEditable
+
+  console.log('UI State:', { 
+    reportStatus, 
+    showDeleteButton, 
+    canDelete: canDeleteReport(reportStatus),
+    isEditable 
+  })
+
   // If redirecting, show loading state
   if (redirectAttempted && (isApproved || isSubmitted)) {
     return (
@@ -722,53 +758,46 @@ export const RMChecklistDetailPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white">
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex items-center gap-3 text-red-600 mb-4">
+              <Trash2 className="w-6 h-6" />
+              <h3 className="text-lg font-semibold">Delete Report</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-6">
+              Are you sure you want to delete this report? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteReport}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                {isDeleting ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete Report'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-white border-b border-[#D6BD98]/30 shadow-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          {/* Rework Banner - Only show if not approved and not submitted */}
-          {isReworkRequired && !isApproved && !isSubmitted && (
-            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-xs font-medium text-amber-800">Rework Required</p>
-                  <p className="text-xs text-amber-700 mt-1">
-                    QS has requested changes. Please check the comments on the right and make the necessary updates.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* QS Review Banner */}
-          {isSubmitted && (
-            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-xs font-medium text-blue-800">Under QS Review</p>
-                  <p className="text-xs text-blue-700 mt-1">
-                    This report is under QS review and cannot be edited.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Approved Banner */}
-          {isApproved && (
-            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-              <div className="flex items-start gap-2">
-                <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-xs font-medium text-green-800">Report Approved</p>
-                  <p className="text-xs text-green-700 mt-1">
-                    This report has been approved and is now in read-only mode. You can download the PDF for your records.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Mobile Header */}
           {isMobile ? (
@@ -786,26 +815,46 @@ export const RMChecklistDetailPage: React.FC = () => {
                 <StatusBadge status={reportStatus} />
               </div>
 
-              {/* Mobile action buttons - conditional based on status */}
-              {(isApproved || isSubmitted) ? (
-                <button
-                  onClick={handleDownloadPDF}
-                  disabled={isDownloadingPDF}
-                  className="px-2 py-1 bg-[#677D6A] text-white rounded-lg hover:bg-[#40534C] transition-colors flex items-center gap-1 text-[9px] flex-shrink-0"
-                >
-                  <Download className="w-3 h-3" />
-                  {isDownloadingPDF ? 'Downloading...' : 'PDF'}
-                </button>
-              ) : (
-                <button
-                  onClick={() => handleSaveDraft(false)}
-                  disabled={isSavingDraft || isSubmitting || !isEditable}
-                  className={`px-2 py-1 border border-[#677D6A] text-[#40534C] rounded-lg hover:bg-[#D6BD98]/10 transition-colors flex items-center gap-1 text-[9px] flex-shrink-0 ${!isEditable ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  <Save className="w-3 h-3" />
-                  {isSavingDraft ? 'Saving...' : 'Draft'}
-                </button>
-              )}
+              {/* Mobile action buttons */}
+              <div className="flex items-center gap-1">
+                {showDeleteButton && (
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Delete report"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                
+                {isApproved ? (
+                  <button
+                    onClick={handleDownloadPDF}
+                    disabled={isDownloadingPDF}
+                    className="px-2 py-1 bg-[#677D6A] text-white rounded-lg hover:bg-[#40534C] transition-colors flex items-center gap-1 text-[9px] flex-shrink-0"
+                  >
+                    <Download className="w-3 h-3" />
+                    {isDownloadingPDF ? '...' : 'PDF'}
+                  </button>
+                ) : isSubmitted ? (
+                  <button
+                    disabled
+                    className="px-2 py-1 bg-gray-200 text-gray-500 rounded-lg flex items-center gap-1 text-[9px] flex-shrink-0 cursor-not-allowed"
+                  >
+                    <Eye className="w-3 h-3" />
+                    View Only
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleSaveDraft(false)}
+                    disabled={isSavingDraft || isSubmitting || !isEditable}
+                    className={`px-2 py-1 border border-[#677D6A] text-[#40534C] rounded-lg hover:bg-[#D6BD98]/10 transition-colors flex items-center gap-1 text-[9px] flex-shrink-0 ${!isEditable ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    <Save className="w-3 h-3" />
+                    {isSavingDraft ? '...' : 'Draft'}
+                  </button>
+                )}
+              </div>
             </div>
           ) : (
             /* Desktop Header */
@@ -832,9 +881,30 @@ export const RMChecklistDetailPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Desktop action buttons - conditional based on status */}
+              {/* Desktop action buttons */}
               <div className="flex items-center gap-2">
-                {(isApproved || isSubmitted) ? (
+                {/* Delete button - only for Pending and Draft reports */}
+                {showDeleteButton && (
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="px-3 py-1.5 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors flex items-center gap-1 text-sm"
+                    title="Delete report"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete
+                  </button>
+                )}
+
+                {isApproved ? (
+                  <button
+                    onClick={handleDownloadPDF}
+                    disabled={isDownloadingPDF}
+                    className="px-3 py-1.5 bg-[#677D6A] text-white rounded-lg hover:bg-[#40534C] transition-colors flex items-center gap-1 text-sm"
+                  >
+                    <Download className="w-4 h-4" />
+                    {isDownloadingPDF ? 'Downloading...' : 'Download PDF'}
+                  </button>
+                ) : isSubmitted ? (
                   <button
                     onClick={handleDownloadPDF}
                     disabled={isDownloadingPDF}

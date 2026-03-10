@@ -76,6 +76,15 @@ export const checklistsApi = baseApi.injectEndpoints({
       invalidatesTags: (result, error, { id }) => [{ type: 'Checklist', id }],
     }),
     
+    // DELETE a report - ADD THIS MUTATION
+    deleteRmChecklist: builder.mutation<{ message: string }, string>({
+      query: (id) => ({
+        url: `rmChecklist/${id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: ['Checklist'],
+    }),
+    
     // Lock a report
     lockReport: builder.mutation<{ message: string; lockInfo: LockStatusResponse }, LockReportDto>({
       query: (payload) => ({
@@ -145,6 +154,7 @@ export const {
   useGetChecklistByIdQuery,
   useCreateRmChecklistMutation,
   useUpdateRmChecklistMutation,
+  useDeleteRmChecklistMutation, // EXPORT THIS
   useLockReportMutation,
   useUnlockReportMutation,
   useGetLockStatusQuery,

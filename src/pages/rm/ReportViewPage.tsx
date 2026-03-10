@@ -25,9 +25,9 @@ import {
   FiClipboard,
   FiGrid,
   FiList,
-  FiChevronRight
+  FiChevronRight,
+  FiLock
 } from 'react-icons/fi'
-import { MdOutlinePlaylistAddCheck } from "react-icons/md"
 import { format } from 'date-fns'
 
 // Helper function to deep clone an object
@@ -324,6 +324,13 @@ export const ReportViewPage: React.FC = () => {
   const handleDownloadPDF = async () => {
     if (!checklist) return
     
+    // CRITICAL SECURITY CHECK: Only allow download if status is APPROVED
+    const status = getReportStatus(checklist)
+    if (status !== 'approved') {
+      toast.error('PDF can only be downloaded for approved reports')
+      return
+    }
+    
     setIsDownloading(true)
     try {
       let logoBase64 = "";
@@ -422,8 +429,11 @@ export const ReportViewPage: React.FC = () => {
 
   const status = getReportStatus(checklist)
   const isApproved = status === 'approved'
-  const isSubmitted = status === 'submitted'
+  const isSubmitted = status === 'submitted' || status === 'pending_qs_review' || status === 'pendingqsreview'
   const isReadOnly = isApproved || isSubmitted
+
+  // CRITICAL: Determine if download button should be enabled (ONLY for approved)
+  const canDownload = isApproved
 
   let form: any = {}
   if (checklist.siteVisitForm && typeof checklist.siteVisitForm === 'object') {
@@ -472,14 +482,24 @@ export const ReportViewPage: React.FC = () => {
             </div>
           </div>
 
+          {/* CRITICAL SECURITY FIX: Download button only enabled for approved reports */}
           {isReadOnly && (
             <button
               onClick={handleDownloadPDF}
-              disabled={isDownloading}
-              className="flex items-center gap-1 px-2 py-1 bg-[#677D6A] text-white rounded hover:bg-[#40534C] transition-colors text-[9px] disabled:opacity-50"
+              disabled={!canDownload || isDownloading}
+              className={`flex items-center gap-1 px-2 py-1 rounded transition-colors text-[9px] ${
+                canDownload 
+                  ? 'bg-[#677D6A] text-white hover:bg-[#40534C] cursor-pointer' 
+                  : 'bg-gray-200 text-gray-500 cursor-not-allowed opacity-50'
+              }`}
+              title={canDownload ? 'Download PDF' : 'PDF download only available for approved reports'}
             >
-              <FiDownload className="w-3 h-3" />
-              {isDownloading ? '...' : 'PDF'}
+              {canDownload ? (
+                <FiDownload className="w-3 h-3" />
+              ) : (
+                <FiLock className="w-3 h-3" />
+              )}
+              {isDownloading ? '...' : canDownload ? 'PDF' : 'Locked'}
             </button>
           )}
         </div>
@@ -654,7 +674,7 @@ export const ReportViewPage: React.FC = () => {
             </div>
 
             <div>
-              <SectionHeader title="Drawdown History" icon={<MdOutlinePlaylistAddCheck className="w-3 h-3" />} />
+              <SectionHeader title="Drawdown History" icon={<FiList className="w-3 h-3" />} />
               <div className="border border-[#D6BD98]/20 rounded overflow-hidden">
                 <table className="w-full text-[9px]">
                   <thead className="bg-[#F5F7F4] border-b border-[#D6BD98]/20">
@@ -687,7 +707,7 @@ export const ReportViewPage: React.FC = () => {
 
             {(form.drawdownRequestNo || form.drawdownKesAmount) && (
               <div>
-                <SectionHeader title="Current Request" icon={<MdOutlinePlaylistAddCheck className="w-3 h-3" />} />
+                <SectionHeader title="Current Request" icon={<FiBriefcase className="w-3 h-3" />} />
                 <div className="bg-[#F5F7F4] p-3 rounded flex justify-between items-center">
                   <div>
                     <p className="text-[8px] text-[#677D6A]">Request No.</p>
@@ -760,13 +780,16 @@ export const ReportViewPage: React.FC = () => {
           <div className="mt-4 p-2 bg-[#F5F7F4] rounded border border-[#D6BD98]/20">
             <div className="flex items-center gap-1.5 text-[#677D6A]">
               {isApproved ? (
-                <FiCheckCircle className="w-3 h-3" />
+                <>
+                  <FiCheckCircle className="w-3 h-3" />
+                  <p className="text-[8px]">Approved - PDF download available</p>
+                </>
               ) : (
-                <FiEye className="w-3 h-3" />
+                <>
+                  <FiLock className="w-3 h-3" />
+                  <p className="text-[8px]">QS Review - PDF locked until approval</p>
+                </>
               )}
-              <p className="text-[8px]">
-                {isApproved ? 'Approved - Read only' : 'QS Review - Read only'}
-              </p>
             </div>
           </div>
         )}

@@ -1,4 +1,4 @@
-// src/pages/qs/QSReviewsPage.tsx (full updated file)
+// src/pages/qs/QSReviewsPage.tsx
 import React, { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
@@ -21,21 +21,29 @@ import toast from 'react-hot-toast'
 
 type ReviewTab = 'pending' | 'progress' | 'completed'
 
-// Status badge component
+// Status badge component - UPDATED with correct mappings
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   const statusLower = status?.toLowerCase() || 'pending'
 
   const statusConfig: Record<string, { label: string; color: string; bgColor: string }> = {
+    // PENDING TAB STATUSES
     pending: { label: 'Pending', color: 'text-amber-700', bgColor: 'bg-amber-100' },
     submitted: { label: 'Pending', color: 'text-amber-700', bgColor: 'bg-amber-100' },
     pending_qs_review: { label: 'Pending', color: 'text-amber-700', bgColor: 'bg-amber-100' },
     pendingqsreview: { label: 'Pending', color: 'text-amber-700', bgColor: 'bg-amber-100' },
-    under_review: { label: 'In Progress', color: 'text-blue-700', bgColor: 'bg-blue-100' },
-    underreview: { label: 'In Progress', color: 'text-blue-700', bgColor: 'bg-blue-100' },
+    
+    // IN PROGRESS TAB STATUSES - NOW SHOWS REWORK
+    under_review: { label: 'Under Review', color: 'text-blue-700', bgColor: 'bg-blue-100' },
+    underreview: { label: 'Under Review', color: 'text-blue-700', bgColor: 'bg-blue-100' },
     inprogress: { label: 'In Progress', color: 'text-blue-700', bgColor: 'bg-blue-100' },
-    rework: { label: 'Rework', color: 'text-orange-700', bgColor: 'bg-orange-100' },
-    approved: { label: 'Completed', color: 'text-emerald-700', bgColor: 'bg-emerald-100' },
+    rework: { label: 'Rework', color: 'text-orange-700', bgColor: 'bg-orange-100' }, // Rework shows in In Progress tab
+    revision_requested: { label: 'Rework', color: 'text-orange-700', bgColor: 'bg-orange-100' },
+    returned: { label: 'Rework', color: 'text-orange-700', bgColor: 'bg-orange-100' },
+    
+    // COMPLETED TAB STATUSES - NOW SHOWS APPROVED
+    approved: { label: 'Approved', color: 'text-emerald-700', bgColor: 'bg-emerald-100' },
     completed: { label: 'Completed', color: 'text-emerald-700', bgColor: 'bg-emerald-100' },
+    rejected: { label: 'Rejected', color: 'text-red-700', bgColor: 'bg-red-100' },
   }
 
   const config = statusConfig[statusLower] || statusConfig.pending
@@ -99,28 +107,54 @@ export const QSReviewsPage: React.FC = () => {
     loadStats()
   }, [activeTab, page])
 
-
   const loadReviews = async () => {
     setIsLoading(true)
     try {
       let response
+      console.log(`Loading ${activeTab} reviews, page ${page}`)
+      
       switch (activeTab) {
         case 'pending':
           response = await qsApi.getPendingReviews(page, 10)
+          console.log('Pending API response:', response)
           break
         case 'progress':
-          // This should fetch reports in 'rework' status
+          // In Progress tab should show reports with status 'rework'
           response = await qsApi.getInProgressReviews(page, 10)
+          console.log('Progress API response:', response)
           break
         case 'completed':
+          // Completed tab should show reports with status 'approved'
           response = await qsApi.getCompletedReviews(page, 10)
+          console.log('Completed API response:', response)
           break
       }
 
       // Handle different response structures
-      const items = response.data?.items || response.data || []
+      let items = []
+      let total = 1
+      
+      if (response.data) {
+        if (Array.isArray(response.data)) {
+          items = response.data
+          total = Math.ceil(items.length / 10) || 1
+        } else if (response.data.items) {
+          items = response.data.items
+          total = response.data.totalPages || Math.ceil(response.data.total / 10) || 1
+        } else if (response.data.data) {
+          items = response.data.data
+          total = response.data.totalPages || 1
+        }
+      }
+      
+      console.log(`Loaded ${items.length} ${activeTab} reviews:`, items.map((r: any) => ({ 
+        id: r.id, 
+        status: r.status,
+        reportNo: r.reportNo || r.dclNo
+      })))
+      
       setReports(items)
-      setTotalPages(response.data?.totalPages || 1)
+      setTotalPages(total)
     } catch (error) {
       console.error('Failed to load reviews:', error)
       toast.error('Failed to load reviews from API')
@@ -136,9 +170,12 @@ export const QSReviewsPage: React.FC = () => {
       const checklistResponse = await axiosInstance.get('/rmChecklist')
       const allReports = transformChecklistsToReports(checklistResponse.data || [])
 
+      console.log('All reports from fallback:', allReports.map(r => ({ id: r.id, status: r.status })))
+
       let filtered: SiteVisitReport[] = []
       switch (activeTab) {
         case 'pending':
+          // Pending: Reports submitted for QS review
           filtered = allReports.filter(r =>
             r.status === 'submitted' ||
             r.status === 'pending_qs_review' ||
@@ -146,13 +183,15 @@ export const QSReviewsPage: React.FC = () => {
           )
           break
         case 'progress':
-          // Reports in rework status - they stay in QS's In Progress
+          // In Progress: Reports that have been returned to RM for rework
           filtered = allReports.filter(r =>
-            r.status === 'rework' &&
-            r.assignedToQS === user?.id
+            r.status === 'rework' ||
+            r.status === 'revision_requested' ||
+            r.status === 'returned'
           )
           break
         case 'completed':
+          // Completed: Reports that have been approved
           filtered = allReports.filter(r =>
             r.status === 'approved' ||
             r.status === 'completed'
@@ -160,6 +199,7 @@ export const QSReviewsPage: React.FC = () => {
           break
       }
 
+      console.log(`Fallback: Found ${filtered.length} reports for ${activeTab} tab`)
       setReports(filtered)
       setTotalPages(Math.ceil(filtered.length / 10))
 
@@ -173,19 +213,64 @@ export const QSReviewsPage: React.FC = () => {
 
   const loadStats = async () => {
     try {
-      const [pending, progress, completed] = await Promise.allSettled([
+      // Try to get stats from API
+      const [pendingRes, progressRes, completedRes] = await Promise.allSettled([
         qsApi.getPendingReviews(1, 1),
         qsApi.getInProgressReviews(1, 1),
         qsApi.getCompletedReviews(1, 1)
       ])
 
+      let pendingCount = 0
+      let progressCount = 0
+      let completedCount = 0
+
+      if (pendingRes.status === 'fulfilled') {
+        const data = pendingRes.value.data
+        pendingCount = data?.total || (Array.isArray(data) ? data.length : 0)
+      }
+      
+      if (progressRes.status === 'fulfilled') {
+        const data = progressRes.value.data
+        progressCount = data?.total || (Array.isArray(data) ? data.length : 0)
+      }
+      
+      if (completedRes.status === 'fulfilled') {
+        const data = completedRes.value.data
+        completedCount = data?.total || (Array.isArray(data) ? data.length : 0)
+      }
+
       setStats({
-        pending: pending.status === 'fulfilled' ? pending.value.data?.total || 0 : 0,
-        progress: progress.status === 'fulfilled' ? progress.value.data?.total || 0 : 0,
-        completed: completed.status === 'fulfilled' ? completed.value.data?.total || 0 : 0
+        pending: pendingCount,
+        progress: progressCount,
+        completed: completedCount
       })
     } catch (error) {
       console.error('Failed to load stats:', error)
+      
+      // Fallback to counting from all reports
+      try {
+        const checklistResponse = await axiosInstance.get('/rmChecklist')
+        const allReports = transformChecklistsToReports(checklistResponse.data || [])
+        
+        setStats({
+          pending: allReports.filter(r =>
+            r.status === 'submitted' ||
+            r.status === 'pending_qs_review' ||
+            r.status === 'pendingqsreview'
+          ).length,
+          progress: allReports.filter(r =>
+            r.status === 'rework' ||
+            r.status === 'revision_requested' ||
+            r.status === 'returned'
+          ).length,
+          completed: allReports.filter(r =>
+            r.status === 'approved' ||
+            r.status === 'completed'
+          ).length
+        })
+      } catch (fallbackError) {
+        console.error('Stats fallback failed:', fallbackError)
+      }
     }
   }
 
@@ -215,16 +300,24 @@ export const QSReviewsPage: React.FC = () => {
 
   const filteredReports = reports.filter(report =>
     searchTerm === '' ||
-    report.reportNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    report.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    report.projectName?.toLowerCase().includes(searchTerm.toLowerCase())
+    (report.reportNo?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (report.customerName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (report.projectName?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   )
 
   const getTabLabel = (tab: ReviewTab) => {
     switch (tab) {
       case 'pending': return 'Pending'
-      case 'progress': return 'In Progress (Rework)'
+      case 'progress': return 'In Progress'
       case 'completed': return 'Completed'
+    }
+  }
+
+  const getTabDescription = (tab: ReviewTab) => {
+    switch (tab) {
+      case 'pending': return 'Reports waiting for QS review'
+      case 'progress': return 'Reports returned to RM for rework'
+      case 'completed': return 'Reports that have been approved'
     }
   }
 
@@ -250,7 +343,7 @@ export const QSReviewsPage: React.FC = () => {
             <div>
               <h1 className="text-xl font-bold text-[#1A3636]">Review Reports</h1>
               <p className="text-xs lg:text-sm text-[#677D6A] mt-1">
-                Manage and review submitted reports
+                {getTabDescription(activeTab)}
               </p>
             </div>
             <Button
@@ -378,6 +471,13 @@ export const QSReviewsPage: React.FC = () => {
                         >
                           Assign to me
                         </button>
+                      </div>
+                    )}
+                    
+                    {/* Show rework badge for progress tab */}
+                    {activeTab === 'progress' && report.status === 'rework' && (
+                      <div className="mt-2 text-[8px] text-orange-600 text-right">
+                        Returned to RM for changes
                       </div>
                     )}
                   </div>
