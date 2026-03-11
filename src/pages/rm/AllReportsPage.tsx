@@ -47,11 +47,10 @@ const formatMobileDate = (dateString?: Date | string) => {
   if (!dateString) return '—'
   try {
     const date = new Date(dateString)
-    return date.toLocaleDateString('en-KE', {
-      day: '2-digit',
-      month: '2-digit',
-      year: '2-digit'
-    }).replace(/\//g, '/')
+    const day = date.getDate().toString().padStart(2, '0')
+    const month = (date.getMonth() + 1).toString().padStart(2, '0')
+    const year = date.getFullYear().toString().slice(-2)
+    return `${day}/${month}/${year}`
   } catch {
     return '—'
   }
@@ -102,8 +101,7 @@ export const AllReportsPage: React.FC = () => {
     
     checkLocks()
     
-    // Set up interval to refresh lock statuses
-    const interval = setInterval(checkLocks, 30000) // Every 30 seconds
+    const interval = setInterval(checkLocks, 30000)
     
     return () => clearInterval(interval)
   }, [allReports])
@@ -112,7 +110,6 @@ export const AllReportsPage: React.FC = () => {
     const report = allReports.find(r => r.id === reportId)
     if (!report) return
     
-    // Check if report is locked by another user
     const lockStatus = lockStatuses[reportId] || await lockService.checkLockStatus(reportId)
     
     if (lockStatus.isLocked && lockStatus.lockedBy?.id !== user?.id) {
@@ -120,7 +117,6 @@ export const AllReportsPage: React.FC = () => {
       return
     }
     
-    // Navigate based on status
     if (report.status?.toLowerCase() === 'approved') {
       navigate(`/rm/reports/${reportId}/view`)
     } else {
@@ -128,9 +124,7 @@ export const AllReportsPage: React.FC = () => {
     }
   }
 
-  // Filter reports based on status and search
   const filteredReports = allReports.filter(report => {
-    // Status filter
     if (statusFilter !== 'all') {
       const reportStatus = report.status?.toLowerCase() || ''
       if (statusFilter === 'submitted' && reportStatus !== 'submitted') return false
@@ -140,7 +134,6 @@ export const AllReportsPage: React.FC = () => {
       if (statusFilter === 'pending' && reportStatus !== 'pending') return false
     }
     
-    // Search filter
     const matchesSearch = searchTerm === '' || 
       report.reportNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       report.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -168,7 +161,7 @@ export const AllReportsPage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center">
             <FiAlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-            <h2 className="text-lg font-semibold text-[#1A3636] mb-2">Failed to Load Reports</h2>
+            <h2 className="text-lg font-bold text-[#1A3636] mb-2">Failed to Load Reports</h2>
             <p className="text-sm text-[#40534C] mb-4">Unable to fetch reports. Please try again.</p>
             <button
               onClick={() => refetch()}
@@ -241,7 +234,7 @@ export const AllReportsPage: React.FC = () => {
           /* Mobile: Scrollable list with headers */
           <div className="border border-[#D6BD98]/20 rounded-lg overflow-hidden bg-white">
             {/* Mobile Headers */}
-            <div className="grid grid-cols-4 gap-1 px-3 py-2 bg-[#F5F7F4] border-b border-[#D6BD98]/20 text-[9px] font-medium text-[#40534C] uppercase tracking-wider">
+            <div className="grid grid-cols-4 gap-1 px-3 py-2 bg-[#F5F7F4] border-b border-[#D6BD98]/20 text-[9px] font-bold text-[#40534C] uppercase tracking-wider">
               <div className="col-span-1">Report</div>
               <div className="col-span-1">Customer</div>
               <div className="col-span-1">Status</div>
@@ -273,8 +266,7 @@ export const AllReportsPage: React.FC = () => {
                       }`}
                     >
                       <div className="grid grid-cols-4 gap-1 text-[10px] items-center">
-                        {/* Report No. with lock indicator */}
-                        <div className="col-span-1 font-medium text-[#1A3636] truncate flex items-center gap-0.5">
+                        <div className="col-span-1 font-bold text-[#1A3636] truncate flex items-center gap-0.5">
                           {lockStatus?.isLocked && (
                             <FiLock className={`w-2.5 h-2.5 flex-shrink-0 ${
                               isLockedByOther ? 'text-amber-500' : 'text-green-500'
@@ -283,23 +275,19 @@ export const AllReportsPage: React.FC = () => {
                           <span className="truncate">{report.reportNo || '—'}</span>
                         </div>
 
-                        {/* Customer Name */}
                         <div className="col-span-1 text-[#40534C] truncate text-[9px]">
                           {report.customerName || report.clientName || '—'}
                         </div>
 
-                        {/* Status */}
                         <div className="col-span-1">
                           <StatusBadge status={report.status || 'pending'} />
                         </div>
 
-                        {/* Updated Date */}
                         <div className="col-span-1 text-[8px] text-[#677D6A] whitespace-nowrap text-right">
                           {formatMobileDate(report.updatedAt || report.createdAt)}
                         </div>
                       </div>
                       
-                      {/* Show who locked it on hover */}
                       {isLockedByOther && (
                         <div className="mt-1 text-[7px] text-amber-600 truncate">
                           Locked by {lockStatus.lockedBy?.name}
@@ -315,7 +303,7 @@ export const AllReportsPage: React.FC = () => {
           /* Desktop: Full table */
           <div className="border border-[#D6BD98]/20 rounded-lg overflow-hidden bg-white">
             {/* Table Header */}
-            <div className="grid grid-cols-12 gap-2 px-4 py-3 bg-[#F5F7F4] border-b border-[#D6BD98]/20 text-xs font-medium text-[#40534C] uppercase tracking-wider">
+            <div className="grid grid-cols-12 gap-2 px-4 py-3 bg-[#F5F7F4] border-b border-[#D6BD98]/20 text-xs font-bold text-[#40534C] uppercase tracking-wider">
               <div className="col-span-2">Report No.</div>
               <div className="col-span-3">Customer</div>
               <div className="col-span-2">Project</div>
@@ -344,8 +332,7 @@ export const AllReportsPage: React.FC = () => {
                       }`}
                       title={isLockedByOther ? `Locked by ${lockStatus.lockedBy?.name}` : ''}
                     >
-                      {/* Report No. with lock indicator */}
-                      <div className="col-span-2 font-medium text-[#1A3636] flex items-center gap-1 truncate">
+                      <div className="col-span-2 font-bold text-[#1A3636] flex items-center gap-1 truncate">
                         {lockStatus?.isLocked && (
                           <FiLock className={`w-3 h-3 flex-shrink-0 ${
                             isLockedByOther ? 'text-amber-500' : 'text-green-500'
@@ -354,28 +341,23 @@ export const AllReportsPage: React.FC = () => {
                         <span className="truncate">{report.reportNo || '—'}</span>
                       </div>
 
-                      {/* Customer Name */}
                       <div className="col-span-3 text-[#40534C] truncate">
                         {report.customerName || report.clientName || '—'}
                       </div>
 
-                      {/* Project Name */}
                       <div className="col-span-2 text-[#40534C] truncate">
                         {report.projectName || report.title || '—'}
                       </div>
 
-                      {/* RM Name */}
                       <div className="col-span-2 text-[#677D6A] truncate flex items-center gap-1">
                         <FiUser className="w-3 h-3 flex-shrink-0" />
                         <span className="truncate">{report.rmName || report.assignedToRM?.name || '—'}</span>
                       </div>
 
-                      {/* Updated Date */}
                       <div className="col-span-2 text-[#677D6A] text-xs">
                         {formatNairobiDate(report.updatedAt || report.createdAt)}
                       </div>
 
-                      {/* Status */}
                       <div className="col-span-1">
                         <StatusBadge status={report.status || 'pending'} />
                       </div>

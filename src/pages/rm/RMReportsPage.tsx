@@ -6,7 +6,7 @@ import { transformChecklistsToReports } from '@/utils/checklistTransform'
 import { useAuth } from '@/hooks/useAuth'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { RMChecklistCreator } from './RMChecklistCreator'
-import { formatNairobiDate, formatCompactNairobiDateTime } from '@/utils/dateUtils'
+import { formatNairobiDate } from '@/utils/dateUtils'
 import { 
   FiPlus,
   FiSearch,
@@ -137,7 +137,7 @@ export const RMReportsPage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center">
             <FiAlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-            <h2 className="text-lg font-semibold text-[#1A3636] mb-2">Failed to Load Reports</h2>
+            <h2 className="text-lg font-bold text-[#1A3636] mb-2">Failed to Load Reports</h2>
             <p className="text-sm text-[#40534C] mb-4">Unable to fetch reports. Please try again.</p>
             <button
               onClick={() => refetch()}
@@ -183,7 +183,7 @@ export const RMReportsPage: React.FC = () => {
             <div className="flex gap-4 lg:gap-6 overflow-x-auto scrollbar-hide border-b border-[#D6BD98]/20 flex-1">
               <button
                 onClick={() => setActiveTab('new')}
-                className={`pb-2 text-xs lg:text-sm font-medium whitespace-nowrap ${
+                className={`pb-2 text-xs lg:text-sm font-bold whitespace-nowrap ${
                   activeTab === 'new'
                     ? 'text-[#1A3636] border-b-2 border-[#1A3636]'
                     : 'text-[#677D6A] hover:text-[#40534C]'
@@ -193,7 +193,7 @@ export const RMReportsPage: React.FC = () => {
               </button>
               <button
                 onClick={() => setActiveTab('qs-review')}
-                className={`pb-2 text-xs lg:text-sm font-medium whitespace-nowrap ${
+                className={`pb-2 text-xs lg:text-sm font-bold whitespace-nowrap ${
                   activeTab === 'qs-review'
                     ? 'text-[#1A3636] border-b-2 border-[#1A3636]'
                     : 'text-[#677D6A] hover:text-[#40534C]'
@@ -203,7 +203,7 @@ export const RMReportsPage: React.FC = () => {
               </button>
               <button
                 onClick={() => setActiveTab('rework')}
-                className={`pb-2 text-xs lg:text-sm font-medium whitespace-nowrap ${
+                className={`pb-2 text-xs lg:text-sm font-bold whitespace-nowrap ${
                   activeTab === 'rework'
                     ? 'text-[#1A3636] border-b-2 border-[#1A3636]'
                     : 'text-[#677D6A] hover:text-[#40534C]'
@@ -241,7 +241,7 @@ export const RMReportsPage: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-6">
         {isMobile ? (
           <div className="border border-[#D6BD98]/20 rounded-lg overflow-hidden bg-white">
-            <div className="grid grid-cols-3 gap-1 px-3 py-2 bg-[#F5F7F4] border-b border-[#D6BD98]/20 text-[9px] font-medium text-[#40534C] uppercase tracking-wider">
+            <div className="grid grid-cols-3 gap-1 px-3 py-2 bg-[#F5F7F4] border-b border-[#D6BD98]/20 text-[9px] font-bold text-[#40534C] uppercase tracking-wider">
               <div className="col-span-1">Report</div>
               <div className="col-span-1">Customer</div>
               <div className="col-span-1 text-right">Status</div>
@@ -265,7 +265,7 @@ export const RMReportsPage: React.FC = () => {
                     className="p-3 border-b border-[#D6BD98]/10 last:border-0 hover:bg-[#D6BD98]/5 transition-colors cursor-pointer active:bg-[#D6BD98]/10"
                   >
                     <div className="grid grid-cols-3 gap-1 text-[10px] items-center">
-                      <div className="col-span-1 font-medium text-[#1A3636] truncate">
+                      <div className="col-span-1 font-bold text-[#1A3636] truncate">
                         {report.reportNo || '—'}
                       </div>
                       <div className="col-span-1 text-[#40534C] truncate text-[9px]">
@@ -282,7 +282,7 @@ export const RMReportsPage: React.FC = () => {
           </div>
         ) : (
           <div className="border border-[#D6BD98]/20 rounded-lg overflow-hidden bg-white">
-            <div className="grid grid-cols-12 gap-2 px-4 py-3 bg-[#F5F7F4] border-b border-[#D6BD98]/20 text-xs font-medium text-[#40534C] uppercase tracking-wider">
+            <div className="grid grid-cols-12 gap-2 px-4 py-3 bg-[#F5F7F4] border-b border-[#D6BD98]/20 text-xs font-bold text-[#40534C] uppercase tracking-wider">
               <div className="col-span-2">Report No.</div>
               <div className="col-span-3">Customer</div>
               <div className="col-span-2">Project</div>
@@ -303,7 +303,7 @@ export const RMReportsPage: React.FC = () => {
                     onClick={() => handleView(report.id)}
                     className="grid grid-cols-12 gap-2 px-4 py-3 hover:bg-[#D6BD98]/5 transition-colors cursor-pointer text-sm"
                   >
-                    <div className="col-span-2 font-medium text-[#1A3636] truncate">
+                    <div className="col-span-2 font-bold text-[#1A3636] truncate">
                       {report.reportNo || '—'}
                     </div>
                     <div className="col-span-3 text-[#40534C] truncate">

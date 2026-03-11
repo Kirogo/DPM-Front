@@ -3,7 +3,7 @@ import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { SiteVisitReport } from '@/types/report.types'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
-import { formatCompactNairobiDateTime, formatNairobiDate } from '@/utils/dateUtils'
+import { formatNairobiDate } from '@/utils/dateUtils'; // This will now work
 
 interface ReportsTableProps {
     reports: SiteVisitReport[]

@@ -1,11 +1,10 @@
 // src/pages/rm/RMChecklistDetailPage.tsx
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Card } from '@/components/common/Card'
 import {
   useGetChecklistByIdQuery,
   useUpdateRmChecklistMutation,
-  useDeleteRmChecklistMutation // IMPORT the delete mutation
+  useDeleteRmChecklistMutation
 } from '@/services/api/checklistsApi'
 import { SiteVisitCallReportForm } from '@/types/checklist.types'
 import { useAuth } from '@/hooks/useAuth'
@@ -26,7 +25,6 @@ import {
   AlertCircle,
   Building2,
   CheckCircle2,
-  HelpCircle,
   Users,
   XCircle,
   ChevronLeft,
@@ -37,8 +35,28 @@ import {
   MessageCircle,
   Download,
   Eye,
-  Trash2
+  Trash2,
+  Clock
 } from 'lucide-react'
+// IMPORT THE LOGO DIRECTLY
+import ncbaLogo from '@/assets/NCBALogo.png'
+
+// Helper to convert image to base64
+const getBase64ImageFromUrl = async (imageUrl: string): Promise<string> => {
+  try {
+    const response = await fetch(imageUrl)
+    const blob = await response.blob()
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(reader.result as string)
+      reader.onerror = reject
+      reader.readAsDataURL(blob)
+    })
+  } catch (error) {
+    console.error('Failed to load image:', error)
+    return ''
+  }
+}
 
 // Initial empty form state
 const initialFormState: SiteVisitCallReportForm = {
@@ -85,7 +103,7 @@ const initialFormState: SiteVisitCallReportForm = {
   defectsNotedPhotos: ['', '', '', '']
 }
 
-// Status badge component with new status values
+// Status badge component
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   const statusLower = status?.toLowerCase() || 'pending'
 
@@ -101,7 +119,7 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   const config = statusConfig[statusLower] || statusConfig.pending
 
   return (
-    <span className={`${config.bgColor} ${config.color} px-2 py-1 rounded-full text-[10px] font-medium whitespace-nowrap`}>
+    <span className={`${config.bgColor} ${config.color} px-2 py-0.5 rounded text-[9px] font-medium whitespace-nowrap`}>
       {config.label}
     </span>
   )
@@ -157,22 +175,18 @@ const isAllStepsComplete = (formData: SiteVisitCallReportForm): boolean => {
   )
 }
 
-// Enhanced helper function to get value with comprehensive case-insensitive access
+// Helper function to get value with comprehensive case-insensitive access
 const getValue = (obj: any, key: string): any => {
   if (!obj) return undefined
 
-  // Try exact match
   if (obj[key] !== undefined && obj[key] !== null) return obj[key]
 
-  // Try PascalCase (first letter capitalized)
   const pascalKey = key.charAt(0).toUpperCase() + key.slice(1)
   if (obj[pascalKey] !== undefined && obj[pascalKey] !== null) return obj[pascalKey]
 
-  // Try all uppercase
   const upperKey = key.toUpperCase()
   if (obj[upperKey] !== undefined && obj[upperKey] !== null) return obj[upperKey]
 
-  // Try the exact property name from the DTO (SiteVisitForm, etc.)
   const exactDtoKey = key === 'siteVisitForm' ? 'SiteVisitForm' :
     key === 'customerName' ? 'CustomerName' :
       key === 'customerNumber' ? 'CustomerNumber' :
@@ -198,11 +212,10 @@ const transformComment = (comment: any): Comment => ({
   createdAt: comment.createdAt || comment.CreatedAt || new Date().toISOString()
 })
 
-// Function to extract status from checklist (handles multiple possible locations)
+// Function to extract status from checklist
 const extractStatus = (checklist: any): string => {
   if (!checklist) return 'pending'
   
-  // Check all possible status locations
   const possibleStatusLocations = [
     checklist.status,
     checklist.Status,
@@ -255,6 +268,7 @@ export const RMChecklistDetailPage: React.FC = () => {
   const [isSavingDraft, setIsSavingDraft] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isDownloadingPDF, setIsDownloadingPDF] = useState(false)
+  const [logoBase64, setLogoBase64] = useState<string>('')
   const [formData, setFormData] = useState<SiteVisitCallReportForm>(initialFormState)
   const [apiError, setApiError] = useState<string | null>(null)
   const [comments, setComments] = useState<Comment[]>([])
@@ -264,6 +278,24 @@ export const RMChecklistDetailPage: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const autoSaveTimer = useRef<NodeJS.Timeout>()
+  const commentsContainerRef = useRef<HTMLDivElement>(null)
+
+  // Load logo when component mounts
+  React.useEffect(() => {
+    const loadLogo = async () => {
+      try {
+        const base64 = await getBase64ImageFromUrl(ncbaLogo)
+        if (base64) {
+          setLogoBase64(base64)
+          console.log('Logo loaded successfully')
+        }
+      } catch (error) {
+        console.error('Failed to load logo:', error)
+      }
+    }
+    
+    loadLogo()
+  }, [])
 
   // Fetch checklist data
   const { data: checklist, isLoading, error, refetch } = useGetChecklistByIdQuery(id!, {
@@ -272,7 +304,7 @@ export const RMChecklistDetailPage: React.FC = () => {
   })
 
   const [updateChecklist] = useUpdateRmChecklistMutation()
-  const [deleteChecklist] = useDeleteRmChecklistMutation() // Initialize delete mutation
+  const [deleteChecklist] = useDeleteRmChecklistMutation()
 
   // Fetch comments
   useEffect(() => {
@@ -281,12 +313,18 @@ export const RMChecklistDetailPage: React.FC = () => {
     }
   }, [id])
 
+  // Scroll comments to top when new comments added
+  useEffect(() => {
+    if (commentsContainerRef.current) {
+      commentsContainerRef.current.scrollTop = 0
+    }
+  }, [comments])
+
   const fetchComments = async () => {
     setIsLoadingComments(true)
     try {
       const response = await axiosInstance.get(`/qs/reviews/${id}/comments`)
       const fetchedComments = (response.data || []).map(transformComment)
-      // Sort with most recent first
       fetchedComments.sort((a: Comment, b: Comment) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       )
@@ -311,17 +349,9 @@ export const RMChecklistDetailPage: React.FC = () => {
   // Load checklist data and extract status
   useEffect(() => {
     if (checklist) {
-      console.log('========== CHECKLIST DATA DEBUG ==========');
-      console.log('Full checklist object:', checklist);
-      
-      // Extract status using our helper function
       const extractedStatus = extractStatus(checklist)
       setReportStatus(extractedStatus)
-      
-      console.log('Extracted status:', extractedStatus);
-      console.log('Can delete?', canDeleteReport(extractedStatus));
 
-      // Try all possible locations for form data
       const possibleFormData = [
         checklist.siteVisitForm,
         checklist.SiteVisitForm,
@@ -329,23 +359,18 @@ export const RMChecklistDetailPage: React.FC = () => {
         checklist.SiteVisitFormJson
       ].filter(Boolean)
 
-      console.log('Possible form data locations:', possibleFormData.length);
-
       let formDataFound = null
 
-      // Try each possible location
       for (const formSource of possibleFormData) {
         try {
           if (typeof formSource === 'string' && formSource !== 'null') {
             const parsed = JSON.parse(formSource)
             if (parsed && typeof parsed === 'object') {
               formDataFound = parsed
-              console.log('Found form data from string:', parsed)
               break
             }
           } else if (formSource && typeof formSource === 'object') {
             formDataFound = formSource
-            console.log('Found form data from object:', formSource)
             break
           }
         } catch (e) {
@@ -354,11 +379,8 @@ export const RMChecklistDetailPage: React.FC = () => {
       }
 
       if (formDataFound) {
-        console.log('✅ Loading existing site visit form data:', formDataFound);
-        console.log('Form fields present:', Object.keys(formDataFound));
         setFormData(formDataFound as SiteVisitCallReportForm);
       } else {
-        console.log('⚠️ No site visit form found, populating basic data');
         setFormData(prev => ({
           ...prev,
           callReportNo: getValue(checklist, 'callReportNo') || getValue(checklist, 'dclNo') || '',
@@ -368,23 +390,18 @@ export const RMChecklistDetailPage: React.FC = () => {
           ibpsNo: getValue(checklist, 'ibpsNo') || '',
         }));
       }
-      console.log('==========================================');
     }
   }, [checklist]);
 
-  // CRITICAL: Redirect to read-only view if report is submitted or approved
+  // Redirect to read-only view if report is submitted or approved
   useEffect(() => {
     if (checklist && !isLoading && !redirectAttempted) {
       const status = reportStatus
-      console.log('Checking status for redirect:', status)
       
       if (isReadOnlyStatus(status)) {
-        console.log('🚨 Read-only status detected, redirecting to view page')
         toast.loading('This report is in read-only mode', { duration: 2000 })
         setRedirectAttempted(true)
         navigate(`/rm/reports/${id}/view`, { replace: true })
-      } else {
-        console.log('✅ Editable status detected, staying on detail page')
       }
     }
   }, [checklist, isLoading, id, navigate, redirectAttempted, reportStatus])
@@ -392,14 +409,12 @@ export const RMChecklistDetailPage: React.FC = () => {
   // Handle API error
   useEffect(() => {
     if (error) {
-      console.error('API Error details:', error)
       setApiError('Failed to load report data. Please try again.')
       toast.error('Failed to load report data')
     }
   }, [error])
 
   const handleFormChange = (updatedForm: SiteVisitCallReportForm) => {
-    // Check if report is approved - should not be editable
     if (isReadOnlyStatus(reportStatus)) {
       toast.error('This report is in read-only mode and cannot be edited')
       return
@@ -407,15 +422,12 @@ export const RMChecklistDetailPage: React.FC = () => {
 
     setFormData(updatedForm)
 
-    // Clear any existing timer
     if (autoSaveTimer.current) {
       clearTimeout(autoSaveTimer.current)
     }
 
-    // Only auto-save if the user has stopped typing for 90 seconds and report is not read-only
     autoSaveTimer.current = setTimeout(() => {
       if (!isSubmitting && !isSavingDraft && !isReadOnlyStatus(reportStatus)) {
-        console.log('Auto-saving draft after inactivity...')
         handleSaveDraft(true)
       }
     }, 90000)
@@ -424,7 +436,6 @@ export const RMChecklistDetailPage: React.FC = () => {
   const handleSaveDraft = async (silent: boolean = false) => {
     if (!id) return
 
-    // Prevent saving draft if report is read-only
     if (isReadOnlyStatus(reportStatus)) {
       toast.error('Cannot save draft: Report is in read-only mode')
       return
@@ -438,7 +449,6 @@ export const RMChecklistDetailPage: React.FC = () => {
         status: 'draft'
       };
 
-      // Preserve existing data
       if (getValue(currentChecklist, 'customerNumber')) payload.customerNumber = getValue(currentChecklist, 'customerNumber');
       if (getValue(currentChecklist, 'customerName')) payload.customerName = getValue(currentChecklist, 'customerName');
       if (getValue(currentChecklist, 'customerEmail')) payload.customerEmail = getValue(currentChecklist, 'customerEmail');
@@ -452,10 +462,7 @@ export const RMChecklistDetailPage: React.FC = () => {
 
       if (getValue(currentChecklist, 'documents')) payload.documents = getValue(currentChecklist, 'documents');
 
-      // CRITICAL: Always include the current form data
       payload.siteVisitForm = formData;
-
-      console.log('Saving draft with form data:', formData);
 
       await updateChecklist({
         id,
@@ -467,7 +474,6 @@ export const RMChecklistDetailPage: React.FC = () => {
       }
       refetch();
     } catch (error) {
-      console.error('Save draft error:', error);
       if (!silent) {
         toast.error('Failed to save draft');
       }
@@ -479,7 +485,6 @@ export const RMChecklistDetailPage: React.FC = () => {
   const handleDeleteReport = async () => {
     if (!id) return
 
-    // Double-check that report can be deleted
     if (!canDeleteReport(reportStatus)) {
       toast.error('This report cannot be deleted')
       setShowDeleteConfirm(false)
@@ -488,12 +493,10 @@ export const RMChecklistDetailPage: React.FC = () => {
 
     setIsDeleting(true)
     try {
-      console.log('Deleting report with ID:', id)
       await deleteChecklist(id).unwrap()
       toast.success('Report deleted successfully')
       navigate('/rm/reports')
     } catch (error) {
-      console.error('Delete error:', error)
       toast.error('Failed to delete report')
     } finally {
       setIsDeleting(false)
@@ -504,7 +507,6 @@ export const RMChecklistDetailPage: React.FC = () => {
   const handleSubmit = async () => {
     if (!id) return
 
-    // Prevent submission if report is read-only
     if (isReadOnlyStatus(reportStatus)) {
       toast.error('Cannot submit: Report is in read-only mode')
       return
@@ -529,7 +531,6 @@ export const RMChecklistDetailPage: React.FC = () => {
         status: 'submitted'
       };
 
-      // Preserve ALL existing data
       if (getValue(currentChecklist, 'customerNumber')) payload.customerNumber = getValue(currentChecklist, 'customerNumber');
       if (getValue(currentChecklist, 'customerName')) payload.customerName = getValue(currentChecklist, 'customerName');
       if (getValue(currentChecklist, 'customerEmail')) payload.customerEmail = getValue(currentChecklist, 'customerEmail');
@@ -543,10 +544,7 @@ export const RMChecklistDetailPage: React.FC = () => {
 
       if (getValue(currentChecklist, 'documents')) payload.documents = getValue(currentChecklist, 'documents');
 
-      // CRITICAL: Include all form data in submission
       payload.siteVisitForm = formData;
-
-      console.log('Submitting with form data:', formData);
 
       await updateChecklist({
         id,
@@ -554,12 +552,9 @@ export const RMChecklistDetailPage: React.FC = () => {
       }).unwrap();
 
       toast.success('Report submitted successfully!');
-
-      // Navigate back to the reports page
       navigate('/rm/reports')
 
     } catch (error) {
-      console.error('Submit error:', error);
       toast.error('Failed to submit report');
     } finally {
       setIsSubmitting(false);
@@ -574,23 +569,26 @@ export const RMChecklistDetailPage: React.FC = () => {
       const reportNumber = getValue(checklist, 'callReportNo') || getValue(checklist, 'dclNo') || 'CRN-000'
       const formattedReportNumber = reportNumber.replace(/^DCL-/i, 'CRN-')
 
-      // Get approver info if status is approved
-      const approvedBy = reportStatus === 'approved'
-        ? checklist?.approvedBy || checklist?.ApprovedBy || 'QS Officer'
-        : undefined
+      // Create a deep copy of formData
+      const pdfData = JSON.parse(JSON.stringify(formData))
+      
+      // Ensure all required arrays exist
+      pdfData.progressPhotosPage3 = pdfData.progressPhotosPage3 || []
+      pdfData.materialsOnSitePhotos = pdfData.materialsOnSitePhotos || []
+      pdfData.defectsNotedPhotos = pdfData.defectsNotedPhotos || []
+      pdfData.documentsSubmitted = pdfData.documentsSubmitted || {}
 
-      const approvalDate = reportStatus === 'approved'
-        ? checklist?.approvedAt || checklist?.ApprovedAt
-        : undefined
+      // Add customer number to PDF data
+      pdfData.customerNumber = getValue(checklist, 'customerNumber') || '—'
 
       const doc = generateSiteVisitReportPDF(
-        formData,
+        pdfData,
         formattedReportNumber,
-        approvedBy,
-        approvalDate
+        logoBase64,
+        reportStatus, // Pass the actual report status
+        undefined // approvalDate (optional)
       )
 
-      // Save the PDF
       doc.save(`Site_Visit_Report_${formattedReportNumber}_${new Date().toISOString().split('T')[0]}.pdf`)
 
       toast.success('PDF downloaded successfully!')
@@ -632,7 +630,6 @@ export const RMChecklistDetailPage: React.FC = () => {
   }
 
   const handleEditStep = (stepId: number) => {
-    // Prevent editing if report is read-only
     if (isReadOnlyStatus(reportStatus)) {
       toast.error('Cannot edit: Report is in read-only mode')
       return
@@ -651,35 +648,22 @@ export const RMChecklistDetailPage: React.FC = () => {
     return [prevStep, currentStep, nextStep].filter(Boolean);
   };
 
-  // Check if report is approved
   const isApproved = reportStatus === 'approved'
-
-  // Check if report is submitted (QS Review)
   const isSubmitted = reportStatus === 'submitted' || 
                      reportStatus === 'pending_qs_review' || 
                      reportStatus === 'pendingqsreview' ||
                      reportStatus === 'under_review'
-
-  // Determine if form should be editable
   const isEditable = !isReadOnlyStatus(reportStatus)
-
-  // Determine if delete button should be shown (only for Pending and Draft)
   const showDeleteButton = canDeleteReport(reportStatus) && isEditable
-
-  console.log('UI State:', { 
-    reportStatus, 
-    showDeleteButton, 
-    canDelete: canDeleteReport(reportStatus),
-    isEditable 
-  })
+  const isReworkRequired = reportStatus === 'rework';
 
   // If redirecting, show loading state
   if (redirectAttempted && (isApproved || isSubmitted)) {
     return (
       <div className="min-h-screen bg-white flex justify-center items-center py-12">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-[#677D6A] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-sm text-[#40534C]">Redirecting to read-only view...</p>
+          <div className="w-8 h-8 border-2 border-[#677D6A] border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <p className="text-xs text-[#40534C]">Redirecting to read-only view...</p>
         </div>
       </div>
     )
@@ -689,11 +673,10 @@ export const RMChecklistDetailPage: React.FC = () => {
   if (isLoading || authLoading) {
     return (
       <div className="min-h-screen bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="animate-pulse space-y-6">
-            <div className="h-12 bg-[#D6BD98]/20 rounded-lg w-1/3"></div>
-            <div className="h-64 bg-[#D6BD98]/10 rounded-lg"></div>
-            <div className="h-32 bg-[#D6BD98]/10 rounded-lg"></div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-[#D6BD98]/20 rounded w-1/4"></div>
+            <div className="h-48 bg-[#D6BD98]/10 rounded"></div>
           </div>
         </div>
       </div>
@@ -704,27 +687,27 @@ export const RMChecklistDetailPage: React.FC = () => {
   if (apiError || error) {
     return (
       <div className="min-h-screen bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <Card className="p-8 text-center">
-            <XCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-            <h2 className="text-lg font-semibold text-[#1A3636] mb-2">Failed to Load Report</h2>
-            <p className="text-sm text-[#40534C] mb-4">{apiError || 'Unable to fetch report data. Please try again.'}</p>
-            <div className="flex gap-3 justify-center">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="text-center py-8">
+            <XCircle className="w-8 h-8 text-red-500 mx-auto mb-3" />
+            <h2 className="text-sm font-semibold text-[#1A3636] mb-1">Failed to Load Report</h2>
+            <p className="text-xs text-[#40534C] mb-4">{apiError || 'Unable to fetch report data.'}</p>
+            <div className="flex gap-2 justify-center">
               <button
                 onClick={handleRetry}
-                className="px-4 py-2 bg-gradient-to-r from-[#1A3636] to-[#40534C] text-white rounded-lg text-sm flex items-center gap-2"
+                className="px-3 py-1.5 bg-[#1A3636] text-white rounded text-xs flex items-center gap-1"
               >
-                <RefreshCw className="w-4 h-4" />
+                <RefreshCw className="w-3 h-3" />
                 Retry
               </button>
               <button
                 onClick={handleCancel}
-                className="px-4 py-2 border border-[#677D6A] text-[#40534C] rounded-lg text-sm"
+                className="px-3 py-1.5 border border-[#677D6A] text-[#40534C] rounded text-xs"
               >
                 Go Back
               </button>
             </div>
-          </Card>
+          </div>
         </div>
       </div>
     )
@@ -734,18 +717,17 @@ export const RMChecklistDetailPage: React.FC = () => {
   if (!checklist) {
     return (
       <div className="min-h-screen bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <Card className="p-8 text-center">
-            <AlertCircle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
-            <h2 className="text-lg font-semibold text-[#1A3636] mb-2">Report Not Found</h2>
-            <p className="text-sm text-[#40534C] mb-4">The requested report could not be found.</p>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="text-center py-8">
+            <AlertCircle className="w-8 h-8 text-yellow-500 mx-auto mb-3" />
+            <h2 className="text-sm font-semibold text-[#1A3636] mb-1">Report Not Found</h2>
             <button
               onClick={handleCancel}
-              className="px-4 py-2 bg-gradient-to-r from-[#1A3636] to-[#40534C] text-white rounded-lg text-sm"
+              className="px-3 py-1.5 bg-[#1A3636] text-white rounded text-xs mt-2"
             >
               Go Back
             </button>
-          </Card>
+          </div>
         </div>
       </div>
     )
@@ -754,40 +736,39 @@ export const RMChecklistDetailPage: React.FC = () => {
   const displayValue = (getValue(checklist, 'callReportNo') || getValue(checklist, 'dclNo') || '-').replace(/^DCL-/i, 'CRN-')
   const allComplete = isAllStepsComplete(formData)
   const mobileVisibleSteps = getMobileVisibleSteps();
-  const isReworkRequired = reportStatus === 'rework';
 
   return (
     <div className="min-h-screen bg-white">
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <div className="flex items-center gap-3 text-red-600 mb-4">
-              <Trash2 className="w-6 h-6" />
-              <h3 className="text-lg font-semibold">Delete Report</h3>
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded max-w-sm w-full p-4">
+            <div className="flex items-center gap-2 text-red-600 mb-3">
+              <Trash2 className="w-4 h-4" />
+              <h3 className="text-sm font-medium">Delete Report</h3>
             </div>
-            <p className="text-sm text-gray-600 mb-6">
+            <p className="text-xs text-gray-600 mb-4">
               Are you sure you want to delete this report? This action cannot be undone.
             </p>
-            <div className="flex justify-end gap-3">
+            <div className="flex justify-end gap-2">
               <button
                 onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
+                className="px-3 py-1.5 border border-gray-300 rounded text-xs hover:bg-gray-50"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDeleteReport}
                 disabled={isDeleting}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
+                className="px-3 py-1.5 bg-red-600 text-white rounded text-xs hover:bg-red-700 disabled:opacity-50 flex items-center gap-1"
               >
                 {isDeleting ? (
                   <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <RefreshCw className="w-3 h-3 animate-spin" />
                     Deleting...
                   </>
                 ) : (
-                  'Delete Report'
+                  'Delete'
                 )}
               </button>
             </div>
@@ -796,171 +777,101 @@ export const RMChecklistDetailPage: React.FC = () => {
       )}
 
       {/* Header */}
-      <div className="bg-white border-b border-[#D6BD98]/30 shadow-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-
-          {/* Mobile Header */}
-          {isMobile ? (
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-2 min-w-0 flex-1">
-                <button
-                  onClick={handleCancel}
-                  className="p-1.5 hover:bg-[#D6BD98]/20 rounded-lg transition-colors flex-shrink-0"
-                >
-                  <ArrowLeft className="w-4 h-4 text-[#40534C]" />
-                </button>
-                <h1 className="text-[11px] font-bold text-[#1A3636] truncate">
-                  {displayValue}
-                </h1>
-                <StatusBadge status={reportStatus} />
+      <div className="sticky top-0 z-20 bg-white border-b border-[#D6BD98]/10 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleCancel}
+                className="p-1 hover:bg-[#D6BD98]/10 rounded transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4 text-[#40534C]" />
+              </button>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-sm font-semibold text-[#1A3636]">
+                    {displayValue}
+                  </h1>
+                  <StatusBadge status={reportStatus} />
+                </div>
+                <p className="text-[9px] text-[#677D6A]">
+                  {isApproved ? 'Approved (Read Only)' : 
+                   isSubmitted ? 'Under QS Review' : 
+                   `Step ${activeStep} of ${steps.length}`}
+                </p>
               </div>
+            </div>
 
-              {/* Mobile action buttons */}
-              <div className="flex items-center gap-1">
-                {showDeleteButton && (
-                  <button
-                    onClick={() => setShowDeleteConfirm(true)}
-                    className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    title="Delete report"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
-                
-                {isApproved ? (
-                  <button
-                    onClick={handleDownloadPDF}
-                    disabled={isDownloadingPDF}
-                    className="px-2 py-1 bg-[#677D6A] text-white rounded-lg hover:bg-[#40534C] transition-colors flex items-center gap-1 text-[9px] flex-shrink-0"
-                  >
-                    <Download className="w-3 h-3" />
-                    {isDownloadingPDF ? '...' : 'PDF'}
-                  </button>
-                ) : isSubmitted ? (
-                  <button
-                    disabled
-                    className="px-2 py-1 bg-gray-200 text-gray-500 rounded-lg flex items-center gap-1 text-[9px] flex-shrink-0 cursor-not-allowed"
-                  >
-                    <Eye className="w-3 h-3" />
-                    View Only
-                  </button>
-                ) : (
+            {/* Action Buttons */}
+            <div className="flex items-center gap-1">
+              {showDeleteButton && (
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                  title="Delete report"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+              
+              {/* PDF Download Button - Available for all statuses */}
+              <button
+                onClick={handleDownloadPDF}
+                disabled={isDownloadingPDF}
+                className="px-2 py-1 bg-[#677D6A] text-white rounded hover:bg-[#40534C] transition-colors text-[9px] flex items-center gap-1"
+                title="Download PDF"
+              >
+                <Download className="w-3 h-3" />
+                {isDownloadingPDF ? '...' : 'PDF'}
+              </button>
+
+              {!isApproved && !isSubmitted && (
+                <>
                   <button
                     onClick={() => handleSaveDraft(false)}
                     disabled={isSavingDraft || isSubmitting || !isEditable}
-                    className={`px-2 py-1 border border-[#677D6A] text-[#40534C] rounded-lg hover:bg-[#D6BD98]/10 transition-colors flex items-center gap-1 text-[9px] flex-shrink-0 ${!isEditable ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`px-2 py-1 border border-[#677D6A] text-[#40534C] rounded hover:bg-[#D6BD98]/10 transition-colors text-[9px] flex items-center gap-1 ${!isEditable ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <Save className="w-3 h-3" />
                     {isSavingDraft ? '...' : 'Draft'}
                   </button>
-                )}
-              </div>
-            </div>
-          ) : (
-            /* Desktop Header */
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <button
-                  onClick={handleCancel}
-                  className="p-2 hover:bg-[#D6BD98]/20 rounded-lg transition-colors"
-                >
-                  <ArrowLeft className="w-5 h-5 text-[#40534C]" />
-                </button>
-                <div>
-                  <div className="flex items-center gap-3">
-                    <h1 className="text-xl font-bold text-[#1A3636]">
-                      {displayValue}
-                    </h1>
-                    <StatusBadge status={reportStatus} />
-                  </div>
-                  <p className="text-sm text-[#40534C]">
-                    {isApproved ? 'Approved Report (Read Only)' : 
-                     isSubmitted ? 'Under QS Review (Read Only)' : 
-                     `Step ${activeStep} of ${steps.length}: ${steps[activeStep - 1].name}`}
-                  </p>
-                </div>
-              </div>
 
-              {/* Desktop action buttons */}
-              <div className="flex items-center gap-2">
-                {/* Delete button - only for Pending and Draft reports */}
-                {showDeleteButton && (
-                  <button
-                    onClick={() => setShowDeleteConfirm(true)}
-                    className="px-3 py-1.5 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors flex items-center gap-1 text-sm"
-                    title="Delete report"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Delete
-                  </button>
-                )}
-
-                {isApproved ? (
-                  <button
-                    onClick={handleDownloadPDF}
-                    disabled={isDownloadingPDF}
-                    className="px-3 py-1.5 bg-[#677D6A] text-white rounded-lg hover:bg-[#40534C] transition-colors flex items-center gap-1 text-sm"
-                  >
-                    <Download className="w-4 h-4" />
-                    {isDownloadingPDF ? 'Downloading...' : 'Download PDF'}
-                  </button>
-                ) : isSubmitted ? (
-                  <button
-                    onClick={handleDownloadPDF}
-                    disabled={isDownloadingPDF}
-                    className="px-3 py-1.5 bg-[#677D6A] text-white rounded-lg hover:bg-[#40534C] transition-colors flex items-center gap-1 text-sm"
-                  >
-                    <Download className="w-4 h-4" />
-                    {isDownloadingPDF ? 'Downloading...' : 'Download PDF'}
-                  </button>
-                ) : (
-                  <>
+                  {activeStep === steps.length ? (
                     <button
-                      onClick={() => handleSaveDraft(false)}
-                      disabled={isSavingDraft || isSubmitting || !isEditable}
-                      className={`px-3 py-1.5 border border-[#677D6A] text-[#40534C] rounded-lg hover:bg-[#D6BD98]/10 transition-colors flex items-center gap-1 text-sm ${!isEditable ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                      <Save className="w-4 h-4" />
-                      {isSavingDraft ? 'Saving...' : 'Save Draft'}
-                    </button>
-
-                    {activeStep === steps.length ? (
-                      <button
-                        onClick={handleSubmit}
-                        disabled={isSubmitting || !allComplete || !isEditable}
-                        className={`px-3 py-1.5 rounded-lg flex items-center gap-1 text-sm ${allComplete && isEditable
-                          ? 'bg-gradient-to-r from-[#1A3636] to-[#40534C] text-white hover:shadow-lg'
+                      onClick={handleSubmit}
+                      disabled={!allComplete || isSubmitting || !isEditable}
+                      className={`px-2 py-1 rounded text-[9px] flex items-center gap-1 ${
+                        allComplete && isEditable
+                          ? 'bg-[#1A3636] text-white hover:bg-[#40534C]'
                           : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                          }`}
-                      >
-                        <Send className="w-4 h-4" />
-                        {isSubmitting ? 'Submitting...' : 'Submit'}
-                      </button>
-                    ) : (
-                      <button
-                        onClick={handleNext}
-                        disabled={!isEditable}
-                        className={`px-3 py-1.5 bg-gradient-to-r from-[#1A3636] to-[#40534C] text-white rounded-lg flex items-center gap-1 text-sm hover:shadow-lg ${!isEditable ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      >
-                        Next
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
-                    )}
-                  </>
-                )}
-              </div>
+                      }`}
+                    >
+                      <Send className="w-3 h-3" />
+                      {isSubmitting ? '...' : 'Submit'}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleNext}
+                      disabled={!isEditable}
+                      className={`px-2 py-1 bg-[#1A3636] text-white rounded hover:bg-[#40534C] transition-colors text-[9px] flex items-center gap-1 ${!isEditable ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      Next
+                      <ChevronRight className="w-3 h-3" />
+                    </button>
+                  )}
+                </>
+              )}
             </div>
-          )}
+          </div>
 
-          {/* Progress Steps - Hide if approved or submitted */}
+          {/* Progress Steps */}
           {!isApproved && !isSubmitted && (
-            <div className="mt-4">
+            <div className="mt-3">
               {isMobile ? (
                 <div className="flex items-center justify-between">
                   {mobileVisibleSteps.map((step, index) => {
                     const isComplete = isStepComplete(step.id, formData);
                     const isActive = activeStep === step.id;
-                    const isPreviewStep = step.id === 6;
 
                     return (
                       <React.Fragment key={step.id}>
@@ -970,36 +881,28 @@ export const RMChecklistDetailPage: React.FC = () => {
                           className={`flex flex-col items-center focus:outline-none group flex-1 ${!isEditable ? 'cursor-not-allowed opacity-60' : ''}`}
                         >
                           <div
-                            className={`flex items-center justify-center w-9 h-9 rounded-full transition-all ${isPreviewStep
-                              ? allComplete
-                                ? 'bg-gradient-to-r from-[#A58560] to-[#C0A47C] text-white shadow-lg shadow-[#D4AF37]/20'
-                                : 'bg-gradient-to-r from-[#A58560] to-[#C0A47C] text-white'
-                              : isComplete
+                            className={`flex items-center justify-center w-7 h-7 rounded-full transition-all ${
+                              isComplete
                                 ? 'bg-[#677D6A] text-white'
                                 : isActive
-                                  ? 'bg-[#1A3636] text-white ring-4 ring-[#D6BD98]/20'
-                                  : 'bg-[#F5F7F4] border border-[#D6BD98]/30 text-[#40534C] group-hover:border-[#677D6A]'
-                              }`}
+                                  ? 'bg-[#1A3636] text-white ring-2 ring-[#D6BD98]/30'
+                                  : 'bg-[#F5F7F4] border border-[#D6BD98]/20 text-[#40534C]'
+                            }`}
                           >
-                            {isPreviewStep ? (
-                              allComplete ? (
-                                <CheckCircle2 className="w-4 h-4" />
-                              ) : (
-                                <step.icon className="w-4 h-4" />
-                              )
-                            ) : isComplete ? (
-                              <CheckCircle2 className="w-4 h-4" />
+                            {isComplete ? (
+                              <CheckCircle2 className="w-3 h-3" />
                             ) : (
-                              <step.icon className="w-4 h-4" />
+                              <step.icon className="w-3 h-3" />
                             )}
                           </div>
-                          <span className={`mt-1 text-[8px] font-medium text-center ${isActive ? 'text-[#1A3636]' : 'text-[#677D6A]'
-                            }`}>
+                          <span className={`mt-1 text-[7px] font-medium text-center ${
+                            isActive ? 'text-[#1A3636]' : 'text-[#677D6A]'
+                          }`}>
                             {step.name}
                           </span>
                         </button>
                         {index < mobileVisibleSteps.length - 1 && (
-                          <div className="flex-1 h-0.5 mx-1 bg-[#D6BD98]" />
+                          <div className="flex-1 h-px mx-1 bg-[#D6BD98]/30" />
                         )}
                       </React.Fragment>
                     );
@@ -1010,7 +913,6 @@ export const RMChecklistDetailPage: React.FC = () => {
                   {steps.map((step, index) => {
                     const isComplete = isStepComplete(step.id, formData);
                     const isActive = activeStep === step.id;
-                    const isPreviewStep = step.id === 6;
 
                     return (
                       <React.Fragment key={step.id}>
@@ -1020,39 +922,32 @@ export const RMChecklistDetailPage: React.FC = () => {
                           className={`flex items-center focus:outline-none group ${!isEditable ? 'cursor-not-allowed opacity-60' : ''}`}
                         >
                           <div
-                            className={`flex items-center justify-center w-8 h-8 rounded-full transition-all ${isPreviewStep
-                              ? allComplete
-                                ? 'bg-gradient-to-r from-[#A58560] to-[#C0A47C] text-white shadow-lg shadow-[#D4AF37]/20'
-                                : 'bg-gradient-to-r from-[#A58560] to-[#C0A47C] text-white'
-                              : isComplete
+                            className={`flex items-center justify-center w-6 h-6 rounded-full transition-all ${
+                              isComplete
                                 ? 'bg-[#677D6A] text-white'
                                 : isActive
-                                  ? 'bg-[#1A3636] text-white ring-4 ring-[#D6BD98]/20'
-                                  : 'bg-[#F5F7F4] border border-[#D6BD98]/30 text-[#40534C] group-hover:border-[#677D6A]'
-                              }`}
+                                  ? 'bg-[#1A3636] text-white ring-2 ring-[#D6BD98]/30'
+                                  : 'bg-[#F5F7F4] border border-[#D6BD98]/20 text-[#40534C]'
+                            }`}
                           >
-                            {isPreviewStep ? (
-                              allComplete ? (
-                                <CheckCircle2 className="w-4 h-4" />
-                              ) : (
-                                <step.icon className="w-4 h-4" />
-                              )
-                            ) : isComplete ? (
-                              <CheckCircle2 className="w-4 h-4" />
+                            {isComplete ? (
+                              <CheckCircle2 className="w-3 h-3" />
                             ) : (
-                              <step.icon className="w-4 h-4" />
+                              <step.icon className="w-3 h-3" />
                             )}
                           </div>
-                          <span className={`ml-2 text-xs font-medium hidden sm:block ${isActive ? 'text-[#1A3636]' : 'text-[#677D6A]'
-                            }`}>
+                          <span className={`ml-2 text-[9px] font-medium hidden sm:block ${
+                            isActive ? 'text-[#1A3636]' : 'text-[#677D6A]'
+                          }`}>
                             {step.name}
                           </span>
                         </button>
                         {index < steps.length - 1 && (
-                          <div className={`flex-1 h-0.5 mx-2 ${index < activeStep - 1 || (index < steps.length - 1 && isStepComplete(step.id + 1, formData))
-                            ? 'bg-[#677D6A]'
-                            : 'bg-[#D6BD98]'
-                            }`} />
+                          <div className={`flex-1 h-px mx-2 ${
+                            index < activeStep - 1 || (index < steps.length - 1 && isStepComplete(step.id + 1, formData))
+                              ? 'bg-[#677D6A]/50'
+                              : 'bg-[#D6BD98]/30'
+                          }`} />
                         )}
                       </React.Fragment>
                     );
@@ -1062,16 +957,16 @@ export const RMChecklistDetailPage: React.FC = () => {
             </div>
           )}
 
-          {/* Mobile action buttons - conditional */}
+          {/* Mobile navigation buttons */}
           {isMobile && !isApproved && !isSubmitted && (
-            <div className="mt-4 flex items-center gap-2">
+            <div className="mt-3 flex items-center gap-2">
               {activeStep > 1 && (
                 <button
                   onClick={handlePrevious}
                   disabled={!isEditable}
-                  className={`flex-1 px-2 py-2 border border-[#677D6A] text-[#40534C] rounded-lg flex items-center justify-center gap-1 text-xs ${!isEditable ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`flex-1 px-2 py-1 border border-[#677D6A] text-[#40534C] rounded flex items-center justify-center gap-1 text-[8px] ${!isEditable ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <ChevronLeft className="w-3 h-3" />
                   Prev
                 </button>
               )}
@@ -1079,22 +974,23 @@ export const RMChecklistDetailPage: React.FC = () => {
                 <button
                   onClick={handleSubmit}
                   disabled={!allComplete || isSubmitting || !isEditable}
-                  className={`flex-1 px-2 py-2 rounded-lg flex items-center justify-center gap-1 text-xs ${allComplete && isEditable
-                    ? 'bg-gradient-to-r from-[#1A3636] to-[#40534C] text-white'
-                    : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                    }`}
+                  className={`flex-1 px-2 py-1 rounded flex items-center justify-center gap-1 text-[8px] ${
+                    allComplete && isEditable
+                      ? 'bg-[#1A3636] text-white'
+                      : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                  }`}
                 >
-                  <Send className="w-3.5 h-3.5" />
-                  {isSubmitting ? 'Submitting...' : 'Submit'}
+                  <Send className="w-3 h-3" />
+                  {isSubmitting ? '...' : 'Submit'}
                 </button>
               ) : (
                 <button
                   onClick={handleNext}
                   disabled={!isEditable}
-                  className={`flex-1 px-2 py-2 bg-gradient-to-r from-[#1A3636] to-[#40534C] text-white rounded-lg flex items-center justify-center gap-1 text-xs ${!isEditable ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`flex-1 px-2 py-1 bg-[#1A3636] text-white rounded flex items-center justify-center gap-1 text-[8px] ${!isEditable ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   Next
-                  <ChevronRight className="w-3.5 h-3.5" />
+                  <ChevronRight className="w-3 h-3" />
                 </button>
               )}
             </div>
@@ -1103,80 +999,104 @@ export const RMChecklistDetailPage: React.FC = () => {
       </div>
 
       {/* Main Content - 70/30 Split */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="flex flex-col lg:flex-row gap-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="flex flex-col lg:flex-row gap-4">
           {/* Left Column - Main Form (70%) */}
-          <div className="lg:w-[70%]">
-            <Card className="border border-[#D6BD98]/20 shadow-lg">
-              <div className="p-6">
-                {activeStep === 6 ? (
-                  <PreviewStep
-                    formData={formData}
-                    onEditStep={handleEditStep}
-                    isReadOnly={!isEditable}
-                  />
-                ) : (
-                  <SiteVisitCallReportFormComponent
-                    value={formData}
-                    onChange={handleFormChange}
-                    activeStep={activeStep}
-                    isReadOnly={!isEditable}
-                  />
-                )}
-              </div>
-            </Card>
+          <div className="lg:w-[70%] bg-white">
+            {activeStep === 6 ? (
+              <PreviewStep
+                formData={formData}
+                onEditStep={handleEditStep}
+                isReadOnly={!isEditable}
+                reportNumber={displayValue}
+                customerNumber={getValue(checklist, 'customerNumber')}
+                reportStatus={reportStatus} // Pass the report status
+              />
+            ) : (
+              <SiteVisitCallReportFormComponent
+                value={formData}
+                onChange={handleFormChange}
+                activeStep={activeStep}
+                isReadOnly={!isEditable}
+              />
+            )}
           </div>
 
           {/* Right Column - Comments Sidebar (30%) */}
           <div className="lg:w-[30%]">
-            <div className="sticky top-[120px] bg-white border border-[#D6BD98]/20 rounded-lg shadow-lg overflow-hidden">
-              <div className="p-4 border-b border-[#D6BD98]/20 bg-gradient-to-r from-[#1A3636] to-[#40534C]">
-                <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                  <MessageCircle className="w-4 h-4" />
-                  Comments ({comments.length})
-                </h3>
+            <div className="sticky top-[100px] bg-white border-l border-[#D6BD98]/10 overflow-hidden flex flex-col">
+              {/* Header */}
+              <div className="px-3 py-2 border-b border-[#D6BD98]/10">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-[9px] font-semibold text-[#1A3636] uppercase tracking-wider">
+                    Comments
+                  </h3>
+                  <span className="text-[8px] text-[#677D6A] bg-[#F5F7F4] px-1.5 py-0.5 rounded">
+                    {comments.length}
+                  </span>
+                </div>
                 {isReworkRequired && !isApproved && !isSubmitted && (
-                  <p className="text-[10px] text-amber-200 mt-1">
-                    QS has requested changes. Review comments below.
+                  <p className="text-[7px] text-amber-600 mt-1">
+                    QS has requested changes
                   </p>
                 )}
               </div>
 
               {/* Scrollable Comments Container */}
               <div
-                className="h-[500px] overflow-y-auto p-4 space-y-3"
-                style={{ maxHeight: 'calc(100vh - 250px)' }}
+                ref={commentsContainerRef}
+                className="h-[calc(100vh-200px)] overflow-y-auto"
               >
                 {isLoadingComments ? (
-                  <div className="flex justify-center py-4">
-                    <div className="w-6 h-6 border-2 border-[#677D6A] border-t-transparent rounded-full animate-spin"></div>
+                  <div className="flex justify-center py-6">
+                    <div className="w-4 h-4 border-2 border-[#677D6A] border-t-transparent rounded-full animate-spin"></div>
                   </div>
                 ) : comments.length === 0 ? (
                   <div className="text-center py-8">
-                    <MessageCircle className="w-8 h-8 text-[#D6BD98] mx-auto mb-2" />
-                    <p className="text-xs text-[#677D6A]">No comments yet</p>
+                    <MessageCircle className="w-4 h-4 text-[#D6BD98] mx-auto mb-1" />
+                    <p className="text-[9px] text-[#677D6A]">No comments</p>
                   </div>
                 ) : (
-                  comments.map((comment) => (
-                    <div key={comment.id} className="py-2 border-b border-[#D6BD98]/10 last:border-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-bold text-[#1A3636]">
-                            {comment.userName}
-                          </span>
-                          <span className="text-[8px] text-[#677D6A]">
-                            • {comment.userRole?.toUpperCase()}
-                          </span>
+                  <div className="divide-y divide-[#D6BD98]/5">
+                    {comments.map((comment, index) => {
+                      const isLatest = index === 0
+                      
+                      return (
+                        <div 
+                          key={comment.id || `comment-${index}`}
+                          className={`px-3 py-2 hover:bg-[#F5F7F4]/30 transition-colors ${
+                            isLatest ? 'bg-[#F5F7F4]/50' : ''
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[9px] font-bold text-[#1A3636]">
+                                {comment.userName}
+                              </span>
+                              <span className="text-[6px] font-medium text-[#677D6A] bg-white px-1 py-0.5 rounded border border-[#D6BD98]/20">
+                                {comment.userRole}
+                              </span>
+                              {isLatest && (
+                                <span className="text-[5px] font-medium text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded">
+                                  New
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-0.5 text-[#677D6A]">
+                              <Clock className="w-2 h-2" />
+                              <span className="text-[6px] whitespace-nowrap">
+                                {formatCompactNairobiDateTime(comment.createdAt)}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          <p className="text-[8px] text-[#40534C] leading-relaxed font-normal">
+                            {comment.text}
+                          </p>
                         </div>
-                        <span className="text-[8px] text-[#677D6A] whitespace-nowrap">
-                          {formatCompactNairobiDateTime(comment.createdAt)}
-                        </span>
-                      </div>
-                      <p className="text-xs text-[#40534C] leading-relaxed whitespace-pre-wrap">
-                        {comment.text}
-                      </p>
-                    </div>
-                  ))
+                      )
+                    })}
+                  </div>
                 )}
               </div>
             </div>

@@ -14,6 +14,23 @@ const axiosInstance = axios.create({
   },
   timeout: 30000,
   withCredentials: true,
+  // Add transformResponse to ensure dates are handled consistently
+  transformResponse: [(data) => {
+    if (!data) return data;
+    try {
+      return JSON.parse(data, (key, value) => {
+        // Check if the value looks like a date string (ISO format)
+        // This pattern matches: 2024-03-11T12:47:00.000Z or 2024-03-11T12:47:00
+        if (typeof value === 'string' && 
+            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?$/.test(value)) {
+          return value; // Keep as string, let dateUtils handle conversion
+        }
+        return value;
+      });
+    } catch (error) {
+      return data;
+    }
+  }],
 })
 
 let isRefreshing = false

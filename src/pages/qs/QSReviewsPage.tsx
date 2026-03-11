@@ -18,29 +18,25 @@ import {
   FiClock
 } from 'react-icons/fi'
 import toast from 'react-hot-toast'
+import { formatNairobiDate } from '@/utils/dateUtils'
 
 type ReviewTab = 'pending' | 'progress' | 'completed'
 
-// Status badge component - UPDATED with correct mappings
+// Status badge component
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   const statusLower = status?.toLowerCase() || 'pending'
 
   const statusConfig: Record<string, { label: string; color: string; bgColor: string }> = {
-    // PENDING TAB STATUSES
     pending: { label: 'Pending', color: 'text-amber-700', bgColor: 'bg-amber-100' },
     submitted: { label: 'Pending', color: 'text-amber-700', bgColor: 'bg-amber-100' },
     pending_qs_review: { label: 'Pending', color: 'text-amber-700', bgColor: 'bg-amber-100' },
     pendingqsreview: { label: 'Pending', color: 'text-amber-700', bgColor: 'bg-amber-100' },
-    
-    // IN PROGRESS TAB STATUSES - NOW SHOWS REWORK
     under_review: { label: 'Under Review', color: 'text-blue-700', bgColor: 'bg-blue-100' },
     underreview: { label: 'Under Review', color: 'text-blue-700', bgColor: 'bg-blue-100' },
     inprogress: { label: 'In Progress', color: 'text-blue-700', bgColor: 'bg-blue-100' },
-    rework: { label: 'Rework', color: 'text-orange-700', bgColor: 'bg-orange-100' }, // Rework shows in In Progress tab
+    rework: { label: 'Rework', color: 'text-orange-700', bgColor: 'bg-orange-100' },
     revision_requested: { label: 'Rework', color: 'text-orange-700', bgColor: 'bg-orange-100' },
     returned: { label: 'Rework', color: 'text-orange-700', bgColor: 'bg-orange-100' },
-    
-    // COMPLETED TAB STATUSES - NOW SHOWS APPROVED
     approved: { label: 'Approved', color: 'text-emerald-700', bgColor: 'bg-emerald-100' },
     completed: { label: 'Completed', color: 'text-emerald-700', bgColor: 'bg-emerald-100' },
     rejected: { label: 'Rejected', color: 'text-red-700', bgColor: 'bg-red-100' },
@@ -53,23 +49,6 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
       {config.label}
     </span>
   )
-}
-
-// Format date
-const formatDate = (dateString?: Date | string) => {
-  if (!dateString) return '—'
-  try {
-    const date = new Date(dateString)
-    const options: Intl.DateTimeFormatOptions = {
-      timeZone: 'Africa/Nairobi',
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
-    }
-    return new Intl.DateTimeFormat('en-KE', options).format(date)
-  } catch {
-    return '—'
-  }
 }
 
 export const QSReviewsPage: React.FC = () => {
@@ -116,21 +95,15 @@ export const QSReviewsPage: React.FC = () => {
       switch (activeTab) {
         case 'pending':
           response = await qsApi.getPendingReviews(page, 10)
-          console.log('Pending API response:', response)
           break
         case 'progress':
-          // In Progress tab should show reports with status 'rework'
           response = await qsApi.getInProgressReviews(page, 10)
-          console.log('Progress API response:', response)
           break
         case 'completed':
-          // Completed tab should show reports with status 'approved'
           response = await qsApi.getCompletedReviews(page, 10)
-          console.log('Completed API response:', response)
           break
       }
 
-      // Handle different response structures
       let items = []
       let total = 1
       
@@ -147,12 +120,6 @@ export const QSReviewsPage: React.FC = () => {
         }
       }
       
-      console.log(`Loaded ${items.length} ${activeTab} reviews:`, items.map((r: any) => ({ 
-        id: r.id, 
-        status: r.status,
-        reportNo: r.reportNo || r.dclNo
-      })))
-      
       setReports(items)
       setTotalPages(total)
     } catch (error) {
@@ -166,16 +133,12 @@ export const QSReviewsPage: React.FC = () => {
 
   const loadReviewsFallback = async () => {
     try {
-      console.log('Using fallback: fetching from /rmChecklist')
       const checklistResponse = await axiosInstance.get('/rmChecklist')
       const allReports = transformChecklistsToReports(checklistResponse.data || [])
-
-      console.log('All reports from fallback:', allReports.map(r => ({ id: r.id, status: r.status })))
 
       let filtered: SiteVisitReport[] = []
       switch (activeTab) {
         case 'pending':
-          // Pending: Reports submitted for QS review
           filtered = allReports.filter(r =>
             r.status === 'submitted' ||
             r.status === 'pending_qs_review' ||
@@ -183,7 +146,6 @@ export const QSReviewsPage: React.FC = () => {
           )
           break
         case 'progress':
-          // In Progress: Reports that have been returned to RM for rework
           filtered = allReports.filter(r =>
             r.status === 'rework' ||
             r.status === 'revision_requested' ||
@@ -191,7 +153,6 @@ export const QSReviewsPage: React.FC = () => {
           )
           break
         case 'completed':
-          // Completed: Reports that have been approved
           filtered = allReports.filter(r =>
             r.status === 'approved' ||
             r.status === 'completed'
@@ -199,13 +160,8 @@ export const QSReviewsPage: React.FC = () => {
           break
       }
 
-      console.log(`Fallback: Found ${filtered.length} reports for ${activeTab} tab`)
       setReports(filtered)
       setTotalPages(Math.ceil(filtered.length / 10))
-
-      if (filtered.length > 0) {
-        toast.success(`Loaded ${filtered.length} reports from fallback`)
-      }
     } catch (fallbackError) {
       console.error('Fallback also failed:', fallbackError)
     }
@@ -213,7 +169,6 @@ export const QSReviewsPage: React.FC = () => {
 
   const loadStats = async () => {
     try {
-      // Try to get stats from API
       const [pendingRes, progressRes, completedRes] = await Promise.allSettled([
         qsApi.getPendingReviews(1, 1),
         qsApi.getInProgressReviews(1, 1),
@@ -246,31 +201,6 @@ export const QSReviewsPage: React.FC = () => {
       })
     } catch (error) {
       console.error('Failed to load stats:', error)
-      
-      // Fallback to counting from all reports
-      try {
-        const checklistResponse = await axiosInstance.get('/rmChecklist')
-        const allReports = transformChecklistsToReports(checklistResponse.data || [])
-        
-        setStats({
-          pending: allReports.filter(r =>
-            r.status === 'submitted' ||
-            r.status === 'pending_qs_review' ||
-            r.status === 'pendingqsreview'
-          ).length,
-          progress: allReports.filter(r =>
-            r.status === 'rework' ||
-            r.status === 'revision_requested' ||
-            r.status === 'returned'
-          ).length,
-          completed: allReports.filter(r =>
-            r.status === 'approved' ||
-            r.status === 'completed'
-          ).length
-        })
-      } catch (fallbackError) {
-        console.error('Stats fallback failed:', fallbackError)
-      }
     }
   }
 
@@ -430,7 +360,7 @@ export const QSReviewsPage: React.FC = () => {
         {isMobile ? (
           /* Mobile view */
           <div className="border border-[#D6BD98]/20 rounded-lg overflow-hidden bg-white">
-            <div className="grid grid-cols-3 gap-1 px-3 py-2 bg-[#F5F7F4] border-b border-[#D6BD98]/20 text-[9px] font-medium text-[#40534C] uppercase tracking-wider">
+            <div className="grid grid-cols-3 gap-1 px-3 py-2 bg-[#F5F7F4] border-b border-[#D6BD98]/20 text-[9px] font-bold text-[#40534C] uppercase tracking-wider">
               <div className="col-span-1">Report</div>
               <div className="col-span-1">Customer</div>
               <div className="col-span-1 text-right">Status</div>
@@ -450,7 +380,7 @@ export const QSReviewsPage: React.FC = () => {
                     className="p-3 border-b border-[#D6BD98]/10 last:border-0 hover:bg-[#D6BD98]/5 transition-colors cursor-pointer active:bg-[#D6BD98]/10"
                   >
                     <div className="grid grid-cols-3 gap-1 text-[10px] items-center">
-                      <div className="col-span-1 font-medium text-[#1A3636] truncate">
+                      <div className="col-span-1 font-bold text-[#1A3636] truncate">
                         {report.reportNo || `CRN-${report.id?.slice(0, 6)}`}
                       </div>
 
@@ -474,7 +404,6 @@ export const QSReviewsPage: React.FC = () => {
                       </div>
                     )}
                     
-                    {/* Show rework badge for progress tab */}
                     {activeTab === 'progress' && report.status === 'rework' && (
                       <div className="mt-2 text-[8px] text-orange-600 text-right">
                         Returned to RM for changes
@@ -488,7 +417,7 @@ export const QSReviewsPage: React.FC = () => {
         ) : (
           /* Desktop view */
           <div className="border border-[#D6BD98]/20 rounded-lg overflow-hidden bg-white">
-            <div className="grid grid-cols-12 gap-2 px-4 py-3 bg-[#F5F7F4] border-b border-[#D6BD98]/20 text-xs font-medium text-[#40534C] uppercase tracking-wider">
+            <div className="grid grid-cols-12 gap-2 px-4 py-3 bg-[#F5F7F4] border-b border-[#D6BD98]/20 text-xs font-bold text-[#40534C] uppercase tracking-wider">
               <div className="col-span-2">Report No.</div>
               <div className="col-span-3">Customer</div>
               <div className="col-span-2">Project</div>
@@ -509,7 +438,7 @@ export const QSReviewsPage: React.FC = () => {
                     onClick={() => handleView(report.id)}
                     className="grid grid-cols-12 gap-2 px-4 py-3 hover:bg-[#D6BD98]/5 transition-colors cursor-pointer text-sm"
                   >
-                    <div className="col-span-2 font-medium text-[#1A3636] truncate">
+                    <div className="col-span-2 font-bold text-[#1A3636] truncate">
                       {report.reportNo || `CRN-${report.id?.slice(0, 8)}`}
                     </div>
 
@@ -523,7 +452,7 @@ export const QSReviewsPage: React.FC = () => {
 
                     <div className="col-span-2 text-[#677D6A] text-xs flex items-center gap-1">
                       <FiCalendar className="w-3 h-3" />
-                      {formatDate(report.submittedAt || report.createdAt)}
+                      {formatNairobiDate(report.submittedAt || report.createdAt)}
                     </div>
 
                     <div className="col-span-2">
@@ -537,7 +466,7 @@ export const QSReviewsPage: React.FC = () => {
                             e.stopPropagation()
                             handleAssignToMe(report.id, e)
                           }}
-                          className="px-2 py-1 text-[9px] font-medium text-[#1A3636] bg-[#D6BD98]/10 rounded hover:bg-[#D6BD98]/20 transition-colors"
+                          className="px-2 py-1 text-[9px] font-bold text-[#1A3636] bg-[#D6BD98]/10 rounded hover:bg-[#D6BD98]/20 transition-colors"
                         >
                           Assign
                         </button>

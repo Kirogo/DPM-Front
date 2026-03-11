@@ -6,7 +6,7 @@ import {
   SiteVisitSubmittedDocs,
 } from '../../types/checklist.types'
 import { useUploadRmChecklistDocumentMutation, useUploadRmChecklistPhotoMutation } from '@/services/api/checklistsApi'
-import { FileText, Upload, X, File, CheckCircle, AlertCircle } from 'lucide-react'
+import { Upload, X } from 'lucide-react'
 
 type Props = {
   value: SiteVisitCallReportForm
@@ -15,27 +15,19 @@ type Props = {
   isReadOnly?: boolean
 }
 
-// Helper function to format filename - clean and minimal
+// Helper function to format filename
 const formatFileName = (fileName: string): string => {
   if (!fileName) return ''
   
-  // Extract the original filename without the timestamp prefix
-  // The pattern is: documenttype-YYYYMMDDHHMMSS-randomstring-originalname.ext
   const parts = fileName.split('-')
   
-  // If it's our generated format (has timestamp and random string)
   if (parts.length >= 4) {
-    // The original name is everything after the random string
-    // Skip: documenttype, timestamp, randomstring
     const originalNameParts = parts.slice(3)
     const originalName = originalNameParts.join('-')
     
-    // Clean up the original name
     if (originalName) {
-      // Remove file extension for display
       const nameWithoutExt = originalName.replace(/\.[^/.]+$/, '')
       
-      // Truncate if too long (max 20 chars)
       if (nameWithoutExt.length > 20) {
         return nameWithoutExt.substring(0, 18) + '…'
       }
@@ -43,7 +35,6 @@ const formatFileName = (fileName: string): string => {
     }
   }
   
-  // If it's not our format, just truncate the whole thing
   const nameWithoutExt = fileName.replace(/\.[^/.]+$/, '')
   if (nameWithoutExt.length > 20) {
     return nameWithoutExt.substring(0, 18) + '…'
@@ -57,7 +48,7 @@ const getFileExtension = (fileName: string): string => {
   return match ? match[0].toLowerCase() : ''
 }
 
-// Get file icon based on extension
+// Get file icon
 const getFileIcon = (fileName: string) => {
   const ext = getFileExtension(fileName).toLowerCase()
   if (['.pdf'].includes(ext)) return '📄'
@@ -67,12 +58,14 @@ const getFileIcon = (fileName: string) => {
   return '📎'
 }
 
-const pageCardClass = 'rounded-lg border border-gray-200 bg-white p-3 md:p-4 space-y-3'
-const labelClass = 'block text-xs font-medium text-gray-700 mb-1'
-const inputClass = 'w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#D4AF37]/30 focus:border-[#D4AF37]'
-const textareaClass = `${inputClass} min-h-[80px]`
+// Minimal input classes - with BOLDER headers
+const sectionClass = 'space-y-3'
+// CHANGED: Made headers bolder with font-semibold and darker color
+const labelClass = 'block text-[9px] font-bold text-[#1A3636] uppercase tracking-wider mb-1'
+const inputClass = 'w-full px-2 py-1.5 text-xs border border-[#D6BD98]/20 rounded focus:outline-none focus:border-[#1A3636] bg-white placeholder:text-[#677D6A]/50'
+const textareaClass = `${inputClass} min-h-[60px] resize-none`
 
-// DocumentItem component - UPDATED with clean filename display
+// DocumentItem component
 const DocumentItem: React.FC<{
   label: string
   documentKey: keyof Pick<SiteVisitSubmittedDocs, 
@@ -92,7 +85,6 @@ const DocumentItem: React.FC<{
   const fileUrl = value[`${documentKey}File` as keyof SiteVisitSubmittedDocs] as string || ''
   const reason = value[`${documentKey}Reason` as keyof SiteVisitSubmittedDocs] as string || ''
 
-  // Extract filename from URL
   const getFileNameFromUrl = (url: string): string => {
     if (!url) return ''
     const parts = url.split('/')
@@ -112,7 +104,7 @@ const DocumentItem: React.FC<{
       }).unwrap()
 
       onFileChange(documentKey, uploaded.url)
-      toast.success(`${label} uploaded successfully`)
+      toast.success(`${label} uploaded`)
     } catch (error: any) {
       toast.error(error?.message || 'Upload failed')
     } finally {
@@ -120,20 +112,15 @@ const DocumentItem: React.FC<{
     }
   }
 
-  const handleRemoveFile = () => {
-    onFileChange(documentKey, '')
-  }
-
   return (
-    <div className="border border-gray-200 rounded-lg p-3 space-y-3">
-      {/* Document Title */}
-      <h5 className="text-sm font-medium text-gray-900">{label}</h5>
+    <div className="py-2 border-b border-[#D6BD98]/10 last:border-0">
+      {/* CHANGED: Made document label bolder */}
+      <div className="text-[10px] font-bold text-[#1A3636] mb-1.5">{label}</div>
       
-      <div className="flex flex-col md:flex-row md:items-start gap-3">
-        {/* Selection Dropdown */}
+      <div className="flex flex-col md:flex-row gap-2">
         <div className="w-full md:w-1/3">
           <select 
-            className={`${inputClass} ${isReadOnly ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+            className={`${inputClass} text-[9px] ${isReadOnly ? 'bg-gray-50 cursor-not-allowed' : ''}`}
             value={selection} 
             onChange={(e) => onSelectionChange(documentKey, e.target.value)}
             disabled={isReadOnly}
@@ -144,25 +131,24 @@ const DocumentItem: React.FC<{
           </select>
         </div>
 
-        {/* Conditional UI based on selection */}
-        <div className="flex-1 w-full">
+        <div className="flex-1">
           {selection === 'Yes' && (
-            <div className="space-y-2">
+            <div>
               {fileUrl ? (
-                <div className="flex items-center justify-between bg-gray-50 p-2 rounded-md">
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <span className="text-base">{fileIcon}</span>
+                <div className="flex items-center justify-between bg-[#F5F7F4] p-1.5 rounded">
+                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                    <span className="text-xs">{fileIcon}</span>
                     <div className="flex flex-col min-w-0">
                       <a 
                         href={fileUrl} 
                         target="_blank" 
                         rel="noreferrer"
-                        className="text-xs text-blue-600 hover:underline truncate font-medium"
-                        title={fileName} // Show full name on hover
+                        className="text-[9px] text-blue-600 hover:underline truncate font-medium"
+                        title={fileName}
                       >
                         {displayName}
                       </a>
-                      <span className="text-[8px] text-gray-400">
+                      <span className="text-[7px] text-[#677D6A]">
                         {getFileExtension(fileName)}
                       </span>
                     </div>
@@ -170,60 +156,53 @@ const DocumentItem: React.FC<{
                   {!isReadOnly && (
                     <button
                       type="button"
-                      onClick={handleRemoveFile}
-                      className="text-red-500 hover:text-red-700 flex-shrink-0 ml-2 p-1 rounded-full hover:bg-red-50"
-                      title="Remove file"
+                      onClick={() => onFileChange(documentKey, '')}
+                      className="text-red-500 hover:text-red-700 p-0.5 rounded hover:bg-red-50"
                     >
                       <X className="w-3 h-3" />
                     </button>
                   )}
                 </div>
               ) : !isReadOnly ? (
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                  <label className="relative cursor-pointer">
-                    <input
-                      type="file"
-                      accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
-                      className="sr-only"
-                      onChange={(event) => {
-                        const selected = event.target.files?.[0]
-                        if (selected) {
-                          handleFileUpload(selected)
-                        }
-                      }}
-                      disabled={isUploading || uploading}
-                    />
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#D6BD98]/10 text-[#40534C] rounded-md text-xs hover:bg-[#D6BD98]/20 transition-colors">
-                      <Upload className="w-3 h-3" />
-                      Choose file
-                    </span>
-                  </label>
-                  {(isUploading || uploading) && (
-                    <span className="text-xs text-[#D4AF37] flex items-center gap-1">
-                      <span className="animate-spin">⏳</span>
-                      Uploading...
-                    </span>
-                  )}
-                </div>
+                <label className="relative cursor-pointer inline-block">
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                    className="sr-only"
+                    onChange={(event) => {
+                      const selected = event.target.files?.[0]
+                      if (selected) {
+                        handleFileUpload(selected)
+                      }
+                    }}
+                    disabled={isUploading || uploading}
+                  />
+                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-[#D6BD98]/10 text-[#40534C] rounded text-[9px] hover:bg-[#D6BD98]/20 transition-colors">
+                    <Upload className="w-3 h-3" />
+                    Choose file
+                  </span>
+                </label>
               ) : (
-                <p className="text-xs text-gray-500 italic">No file uploaded</p>
+                <p className="text-[9px] text-[#677D6A] italic">No file</p>
+              )}
+              {(isUploading || uploading) && (
+                <span className="text-[8px] text-[#D4AF37] ml-2">Uploading...</span>
               )}
             </div>
           )}
 
           {selection === 'No' && (
             isReadOnly ? (
-              <p className="text-xs text-gray-700 bg-gray-50 p-2 rounded-md">
+              <p className="text-[9px] text-[#677D6A] bg-[#F5F7F4] p-1.5 rounded">
                 {reason || 'No reason provided'}
               </p>
             ) : (
               <textarea
-                className={textareaClass}
-                placeholder="Please provide reason for not submitting this document..."
+                className={`${inputClass} text-[9px]`}
+                placeholder="Reason for not submitting..."
                 value={reason}
                 onChange={(e) => onReasonChange(documentKey, e.target.value)}
                 rows={2}
-                disabled={isReadOnly}
               />
             )
           )}
@@ -233,6 +212,7 @@ const DocumentItem: React.FC<{
   )
 }
 
+// PhotoGrid component
 const PhotoGrid: React.FC<{
   title: string
   sectionKey: string
@@ -252,107 +232,108 @@ const PhotoGrid: React.FC<{
         slot: index + 1,
       }).unwrap()
 
-      onChange(updatePhotoList(values, index, uploaded.url))
+      const newValues = [...values]
+      newValues[index] = uploaded.url
+      onChange(newValues)
       toast.success(`Photo ${index + 1} uploaded`)
     } catch (error: any) {
-      toast.error(error?.message || 'Photo upload failed')
+      toast.error(error?.message || 'Upload failed')
     } finally {
       setUploadingIndex(null)
     }
   }
 
   return (
-    <section className={pageCardClass}>
-      <h4 className="text-sm font-semibold text-gray-900">{title}</h4>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+    <div className="py-3 border-b border-[#D6BD98]/10 last:border-0">
+      {/* CHANGED: Made photo section title bolder */}
+      <h4 className="text-[10px] font-bold text-[#1A3636] mb-2">{title}</h4>
+      <div className="grid grid-cols-2 gap-2">
         {values.map((photoUrl, index) => (
-          <div key={`${title}-${index}`} className={`rounded-md border border-gray-200 p-2 space-y-2 ${isReadOnly ? 'bg-gray-50' : ''}`}>
-            <label className={labelClass}>Photo {index + 1}</label>
+          <div key={`${title}-${index}`} className="space-y-1">
+            <div className="text-[8px] text-[#677D6A]">Photo {index + 1}</div>
 
             {photoUrl ? (
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <img
                   src={photoUrl}
                   alt={`${title} ${index + 1}`}
-                  className="w-full h-32 object-cover rounded-md border border-gray-200"
+                  className="w-full h-20 object-cover rounded border border-[#D6BD98]/20"
                 />
-                <a
-                  href={photoUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-xs text-blue-600 hover:underline block truncate"
-                >
-                  View full image
-                </a>
-                {!isReadOnly && photoUrl && (
-                  <button
-                    type="button"
-                    className="text-xs text-red-600 hover:underline"
-                    onClick={() => onChange(updatePhotoList(values, index, ''))}
+                <div className="flex items-center justify-between">
+                  <a
+                    href={photoUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[8px] text-blue-600 hover:underline"
                   >
-                    Remove photo
-                  </button>
-                )}
+                    View
+                  </a>
+                  {!isReadOnly && (
+                    <button
+                      type="button"
+                      className="text-[8px] text-red-600 hover:underline"
+                      onClick={() => {
+                        const newValues = [...values]
+                        newValues[index] = ''
+                        onChange(newValues)
+                      }}
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
               </div>
             ) : (
-              <div className="h-32 rounded-md border border-dashed border-gray-300 flex items-center justify-center text-xs text-gray-500">
-                {isReadOnly ? 'No photo' : 'No photo uploaded'}
-              </div>
-            )}
-
-            {!isReadOnly && !photoUrl && (
-              <div className="flex items-center justify-center">
-                <label className="relative cursor-pointer w-full">
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp"
-                    className="sr-only"
-                    onChange={(event) => {
-                      const selected = event.target.files?.[0]
-                      if (selected) {
-                        void handleFileUpload(selected, index)
-                      }
-                    }}
-                    disabled={isUploading}
-                  />
-                  <span className="inline-flex items-center justify-center gap-1 w-full px-2 py-1.5 bg-[#D6BD98]/10 text-[#40534C] rounded-md text-xs hover:bg-[#D6BD98]/20 transition-colors">
-                    <Upload className="w-3 h-3" />
-                    Upload
-                  </span>
-                </label>
+              <div className="h-20 rounded border border-dashed border-[#D6BD98]/30 flex items-center justify-center">
+                {!isReadOnly ? (
+                  <label className="relative cursor-pointer w-full h-full flex items-center justify-center">
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="sr-only"
+                      onChange={(event) => {
+                        const selected = event.target.files?.[0]
+                        if (selected) {
+                          handleFileUpload(selected, index)
+                        }
+                      }}
+                      disabled={isUploading}
+                    />
+                    <span className="text-[8px] text-[#677D6A] flex flex-col items-center">
+                      <Upload className="w-3 h-3 mb-0.5" />
+                      Upload
+                    </span>
+                  </label>
+                ) : (
+                  <span className="text-[8px] text-[#677D6A]">No photo</span>
+                )}
               </div>
             )}
 
             {uploadingIndex === index && (
-              <p className="text-xs text-[#D4AF37] text-center">Uploading...</p>
+              <p className="text-[7px] text-[#D4AF37]">Uploading...</p>
             )}
           </div>
         ))}
       </div>
-    </section>
+    </div>
   )
 }
 
-// Helper function for photo list updates
-const updatePhotoList = (list: string[], index: number, next: string): string[] => {
-  const copy = [...list]
-  copy[index] = next
-  return copy
-}
-
-// Step 1: Customer Info Component
+// Step 1: Customer Info - BOLDER headers
 const CustomerInfoSection: React.FC<{
   value: SiteVisitCallReportForm;
   onChange: (field: keyof SiteVisitCallReportForm, value: any) => void;
   isReadOnly?: boolean;
 }> = ({ value, onChange, isReadOnly = false }) => {
   return (
-    <div className="space-y-3">
-      <section className={pageCardClass}>
-        <h4 className="text-sm font-semibold text-gray-900">Customer Information</h4>
+    <div className={sectionClass}>
+      <div className="py-3 border-b border-[#D6BD98]/10">
+        {/* CHANGED: Made header bolder */}
+        <h4 className={labelClass}>Customer Information</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
-            <label className={labelClass}>Call Report No.</label>
+            <label className="text-[10px] text-[#677D6A] block mb-0.5">Call Report No.</label>
             <input 
               className={`${inputClass} bg-gray-50`}
               value={value.callReportNo} 
@@ -362,9 +343,9 @@ const CustomerInfoSection: React.FC<{
             />
           </div>
           <div>
-            <label className={labelClass}>Customer Name</label>
+            <label className="text-[10px] text-[#677D6A] block mb-0.5">Customer Name</label>
             <input 
-              className={`${inputClass} ${isReadOnly ? 'bg-gray-50' : ''}`}
+              className={inputClass}
               value={value.customerName} 
               onChange={(e) => onChange('customerName', e.target.value)} 
               readOnly={isReadOnly}
@@ -372,14 +353,14 @@ const CustomerInfoSection: React.FC<{
             />
           </div>
           <div>
-            <label className={labelClass}>Salaried / Consultancy / Business</label>
+            <label className="text-[10px] text-[#677D6A] block mb-0.5">Customer Type</label>
             <select 
-              className={`${inputClass} ${isReadOnly ? 'bg-gray-50 cursor-not-allowed' : ''}`}
+              className={inputClass}
               value={value.customerType} 
               onChange={(e) => onChange('customerType', e.target.value)}
               disabled={isReadOnly}
             >
-              <option value="">Select type</option>
+              <option value="">Select</option>
               <option value="Salaried">Salaried</option>
               <option value="Consultancy">Consultancy</option>
               <option value="Business">Business</option>
@@ -387,29 +368,28 @@ const CustomerInfoSection: React.FC<{
             </select>
           </div>
           <div>
-            <label className={labelClass}>Brief Profile</label>
+            <label className="text-[10px] text-[#677D6A] block mb-0.5">Brief Profile</label>
             <input 
-              className={`${inputClass} ${isReadOnly ? 'bg-gray-50' : ''}`}
+              className={inputClass}
               value={value.briefProfile} 
               onChange={(e) => onChange('briefProfile', e.target.value)} 
-              placeholder="Brief customer profile"
+              placeholder="Brief profile"
               readOnly={isReadOnly}
               disabled={isReadOnly}
             />
           </div>
         </div>
-      </section>
+      </div>
     </div>
   )
 }
 
-// Step 2: Site Visit Details Component
+// Step 2: Site Visit - BOLDER headers
 const SiteVisitSection: React.FC<{
   value: SiteVisitCallReportForm;
   onChange: (field: keyof SiteVisitCallReportForm, value: any) => void;
   isReadOnly?: boolean;
 }> = ({ value, onChange, isReadOnly = false }) => {
-  // Auto-calculate subtotals when amounts change
   useEffect(() => {
     if (!isReadOnly) {
       const d1 = parseFloat(value.drawnFundsD1) || 0
@@ -428,324 +408,318 @@ const SiteVisitSection: React.FC<{
   }, [value.drawnFundsD1, value.drawnFundsD2, value.constructionLoanAmount, isReadOnly])
 
   return (
-    <div className="space-y-3">
+    <div className={sectionClass}>
       {/* Visit Details */}
-      <section className={pageCardClass}>
-        <h4 className="text-sm font-semibold text-gray-900">Visit Details</h4>
+      <div className="py-3 border-b border-[#D6BD98]/10">
+        {/* CHANGED: Made header bolder */}
+        <h4 className={labelClass}>Visit Details</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
-            <label className={labelClass}>Date and Time of Site Visit</label>
+            <label className="text-[10px] text-[#677D6A] block mb-0.5">Date & Time</label>
             <input
-              className={`${inputClass} ${isReadOnly ? 'bg-gray-50' : ''}`}
+              className={inputClass}
               type="datetime-local"
               value={value.siteVisitDateTime}
               onChange={(e) => onChange('siteVisitDateTime', e.target.value)}
               disabled={isReadOnly}
-              readOnly={isReadOnly}
             />
           </div>
           <div>
-            <label className={labelClass}>Person Met at Site</label>
+            <label className="text-[10px] text-[#677D6A] block mb-0.5">Person Met</label>
             <input
-              className={`${inputClass} ${isReadOnly ? 'bg-gray-50' : ''}`}
+              className={inputClass}
               value={value.personMetAtSite}
               onChange={(e) => onChange('personMetAtSite', e.target.value)}
-              placeholder="Designation / Name"
+              placeholder="Name"
               disabled={isReadOnly}
-              readOnly={isReadOnly}
             />
           </div>
         </div>
-      </section>
+      </div>
 
       {/* Amounts Breakdown */}
-      <section className={pageCardClass}>
-        <h4 className="text-sm font-semibold text-gray-900">Amounts Breakdown</h4>
+      <div className="py-3 border-b border-[#D6BD98]/10">
+        {/* CHANGED: Made header bolder */}
+        <h4 className={labelClass}>Amounts</h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
-            <label className={labelClass}>BQ Amount (KES)</label>
+            <label className="text-[10px] text-[#677D6A] block mb-0.5">BQ Amount (KES)</label>
             <input
               type="number"
-              className={`${inputClass} ${isReadOnly ? 'bg-gray-50' : ''}`}
+              className={inputClass}
               value={value.bqAmount}
               onChange={(e) => onChange('bqAmount', e.target.value)}
               placeholder="0.00"
               disabled={isReadOnly}
-              readOnly={isReadOnly}
             />
           </div>
           <div>
-            <label className={labelClass}>Construction Loan Amount (KES)</label>
+            <label className="text-[10px] text-[#677D6A] block mb-0.5">Construction Loan</label>
             <input
               type="number"
-              className={`${inputClass} ${isReadOnly ? 'bg-gray-50' : ''}`}
+              className={inputClass}
               value={value.constructionLoanAmount}
               onChange={(e) => onChange('constructionLoanAmount', e.target.value)}
               placeholder="0.00"
               disabled={isReadOnly}
-              readOnly={isReadOnly}
             />
           </div>
           <div>
-            <label className={labelClass}>Customer's Contribution (KES)</label>
+            <label className="text-[10px] text-[#677D6A] block mb-0.5">Customer Contribution</label>
             <input
               type="number"
-              className={`${inputClass} ${isReadOnly ? 'bg-gray-50' : ''}`}
+              className={inputClass}
               value={value.customerContribution}
               onChange={(e) => onChange('customerContribution', e.target.value)}
               placeholder="0.00"
               disabled={isReadOnly}
-              readOnly={isReadOnly}
             />
           </div>
         </div>
-      </section>
+      </div>
 
       {/* Drawdown Funds */}
-      <section className={pageCardClass}>
-        <h4 className="text-sm font-semibold text-gray-900">DrawDown Funds to Date</h4>
+      <div className="py-3 border-b border-[#D6BD98]/10">
+        {/* CHANGED: Made header bolder */}
+        <h4 className={labelClass}>Drawdown Funds</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
-            <label className={labelClass}>Drawn Funds D1 (KES)</label>
+            <label className="text-[10px] text-[#677D6A] block mb-0.5">Drawn Funds D1</label>
             <input
               type="number"
-              className={`${inputClass} ${isReadOnly ? 'bg-gray-50' : ''}`}
+              className={inputClass}
               value={value.drawnFundsD1}
               onChange={(e) => onChange('drawnFundsD1', e.target.value)}
               placeholder="0.00"
               disabled={isReadOnly}
-              readOnly={isReadOnly}
             />
           </div>
           <div>
-            <label className={labelClass}>Drawn Funds D2 (KES)</label>
+            <label className="text-[10px] text-[#677D6A] block mb-0.5">Drawn Funds D2</label>
             <input
               type="number"
-              className={`${inputClass} ${isReadOnly ? 'bg-gray-50' : ''}`}
+              className={inputClass}
               value={value.drawnFundsD2}
               onChange={(e) => onChange('drawnFundsD2', e.target.value)}
               placeholder="0.00"
               disabled={isReadOnly}
-              readOnly={isReadOnly}
             />
           </div>
           <div>
-            <label className={labelClass}>Subtotal Drawn Funds (KES)</label>
+            <label className="text-[10px] text-[#677D6A] block mb-0.5">Subtotal</label>
             <input
               type="number"
               className={`${inputClass} bg-gray-50`}
               value={value.drawnFundsSubtotal}
               readOnly
               placeholder="0.00"
-              disabled={isReadOnly}
             />
           </div>
           <div>
-            <label className={labelClass}>Undrawn Funds to Date (KES)</label>
+            <label className="text-[10px] text-[#677D6A] block mb-0.5">Undrawn Funds</label>
             <input
               type="number"
               className={`${inputClass} bg-gray-50`}
               value={value.undrawnFundsToDate}
               readOnly
               placeholder="0.00"
-              disabled={isReadOnly}
             />
           </div>
         </div>
-      </section>
+      </div>
 
       {/* Site Details */}
-      <section className={pageCardClass}>
-        <h4 className="text-sm font-semibold text-gray-900">Details of the Site</h4>
+      <div className="py-3 border-b border-[#D6BD98]/10">
+        {/* CHANGED: Made header bolder */}
+        <h4 className={labelClass}>Site Details</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
-            <label className={labelClass}>Exact Location</label>
+            <label className="text-[10px] text-[#677D6A] block mb-0.5">Exact Location</label>
             <input
-              className={`${inputClass} ${isReadOnly ? 'bg-gray-50' : ''}`}
+              className={inputClass}
               value={value.siteExactLocation}
               onChange={(e) => onChange('siteExactLocation', e.target.value)}
               placeholder="Location"
               disabled={isReadOnly}
-              readOnly={isReadOnly}
             />
           </div>
           <div>
-            <label className={labelClass}>House Located Along</label>
+            <label className="text-[10px] text-[#677D6A] block mb-0.5">House Located Along</label>
             <input
-              className={`${inputClass} ${isReadOnly ? 'bg-gray-50' : ''}`}
+              className={inputClass}
               value={value.houseLocatedAlong}
               onChange={(e) => onChange('houseLocatedAlong', e.target.value)}
               placeholder="Street/Road"
               disabled={isReadOnly}
-              readOnly={isReadOnly}
             />
           </div>
           <div>
-            <label className={labelClass}>Site Pin</label>
+            <label className="text-[10px] text-[#677D6A] block mb-0.5">Site Pin</label>
             <input
-              className={`${inputClass} ${isReadOnly ? 'bg-gray-50' : ''}`}
+              className={inputClass}
               value={value.sitePin}
               onChange={(e) => onChange('sitePin', e.target.value)}
               placeholder="PIN"
               disabled={isReadOnly}
-              readOnly={isReadOnly}
             />
           </div>
           <div>
-            <label className={labelClass}>Security Details</label>
+            <label className="text-[10px] text-[#677D6A] block mb-0.5">Security Details</label>
             <input
-              className={`${inputClass} ${isReadOnly ? 'bg-gray-50' : ''}`}
+              className={inputClass}
               value={value.securityDetails}
               onChange={(e) => onChange('securityDetails', e.target.value)}
-              placeholder="Apt no, House No./LR. No."
+              placeholder="Apt no, House No."
               disabled={isReadOnly}
-              readOnly={isReadOnly}
             />
           </div>
           <div>
-            <label className={labelClass}>Plot / LR No.</label>
+            <label className="text-[10px] text-[#677D6A] block mb-0.5">Plot / LR No.</label>
             <input
-              className={`${inputClass} ${isReadOnly ? 'bg-gray-50' : ''}`}
+              className={inputClass}
               value={value.plotLrNo}
               onChange={(e) => onChange('plotLrNo', e.target.value)}
               placeholder="Plot/LR Number"
               disabled={isReadOnly}
-              readOnly={isReadOnly}
             />
           </div>
         </div>
-      </section>
+      </div>
     </div>
   )
 }
 
-// Step 3: Project Information Component
+// Step 3: Project Info - BOLDER headers
 const ProjectInfoSection: React.FC<{
   value: SiteVisitCallReportForm;
   onChange: (field: keyof SiteVisitCallReportForm, value: any) => void;
   isReadOnly?: boolean;
 }> = ({ value, onChange, isReadOnly = false }) => {
   return (
-    <div className="space-y-3">
+    <div className={sectionClass}>
       {/* Site Visit Objectives */}
-      <section className={pageCardClass}>
-        <h4 className="text-sm font-semibold text-gray-900">Site Visit Objectives</h4>
-        <div>
-          <label className={labelClass}>1: Confirm progress on site and level of work done</label>
-          <textarea
-            className={`${textareaClass} ${isReadOnly ? 'bg-gray-50' : ''}`}
-            value={value.siteVisitObjective1}
-            onChange={(e) => onChange('siteVisitObjective1', e.target.value)}
-            disabled={isReadOnly}
-            readOnly={isReadOnly}
-          />
+      <div className="py-3 border-b border-[#D6BD98]/10">
+        {/* CHANGED: Made header bolder */}
+        <h4 className={labelClass}>Site Visit Objectives</h4>
+        <div className="space-y-2">
+          <div>
+            <label className="text-[10px] text-[#677D6A] block mb-0.5">1: Confirm progress</label>
+            <textarea
+              className={textareaClass}
+              value={value.siteVisitObjective1}
+              onChange={(e) => onChange('siteVisitObjective1', e.target.value)}
+              disabled={isReadOnly}
+              rows={2}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-[#677D6A] block mb-0.5">2: Check defects</label>
+            <textarea
+              className={textareaClass}
+              value={value.siteVisitObjective2}
+              onChange={(e) => onChange('siteVisitObjective2', e.target.value)}
+              disabled={isReadOnly}
+              rows={2}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-[#677D6A] block mb-0.5">3: Note materials</label>
+            <textarea
+              className={textareaClass}
+              value={value.siteVisitObjective3}
+              onChange={(e) => onChange('siteVisitObjective3', e.target.value)}
+              disabled={isReadOnly}
+              rows={2}
+            />
+          </div>
         </div>
-        <div>
-          <label className={labelClass}>2: Confirm status of the building including taking note of any visible defects</label>
-          <textarea
-            className={`${textareaClass} ${isReadOnly ? 'bg-gray-50' : ''}`}
-            value={value.siteVisitObjective2}
-            onChange={(e) => onChange('siteVisitObjective2', e.target.value)}
-            disabled={isReadOnly}
-            readOnly={isReadOnly}
-          />
-        </div>
-        <div>
-          <label className={labelClass}>3: Take note of materials stored on site</label>
-          <textarea
-            className={`${textareaClass} ${isReadOnly ? 'bg-gray-50' : ''}`}
-            value={value.siteVisitObjective3}
-            onChange={(e) => onChange('siteVisitObjective3', e.target.value)}
-            disabled={isReadOnly}
-            readOnly={isReadOnly}
-          />
-        </div>
-      </section>
+      </div>
 
-      {/* Call Details */}
-      <section className={pageCardClass}>
-        <h4 className="text-sm font-semibold text-gray-900">Call Details</h4>
-        <div>
-          <label className={labelClass}>Works Complete</label>
-          <textarea
-            className={`${textareaClass} ${isReadOnly ? 'bg-gray-50' : ''}`}
-            value={value.worksComplete}
-            onChange={(e) => onChange('worksComplete', e.target.value)}
-            placeholder="Construction is currently on going. The following works are complete:"
-            disabled={isReadOnly}
-            readOnly={isReadOnly}
-          />
+      {/* Works Progress */}
+      <div className="py-3 border-b border-[#D6BD98]/10">
+        {/* CHANGED: Made header bolder */}
+        <h4 className={labelClass}>Works Progress</h4>
+        <div className="space-y-2">
+          <div>
+            <label className="text-[10px] text-[#677D6A] block mb-0.5">Works Complete</label>
+            <textarea
+              className={textareaClass}
+              value={value.worksComplete}
+              onChange={(e) => onChange('worksComplete', e.target.value)}
+              placeholder="Works complete:"
+              disabled={isReadOnly}
+              rows={2}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-[#677D6A] block mb-0.5">Works Ongoing</label>
+            <textarea
+              className={textareaClass}
+              value={value.worksOngoing}
+              onChange={(e) => onChange('worksOngoing', e.target.value)}
+              placeholder="Works ongoing:"
+              disabled={isReadOnly}
+              rows={2}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-[#677D6A] block mb-0.5">Materials Found</label>
+            <textarea
+              className={textareaClass}
+              value={value.materialsFoundOnSite}
+              onChange={(e) => onChange('materialsFoundOnSite', e.target.value)}
+              placeholder="Materials:"
+              disabled={isReadOnly}
+              rows={2}
+            />
+          </div>
+          <div>
+            <label className="text-[10px] text-[#677D6A] block mb-0.5">Defects Noted</label>
+            <textarea
+              className={textareaClass}
+              value={value.defectsNotedOnSite}
+              onChange={(e) => onChange('defectsNotedOnSite', e.target.value)}
+              placeholder="Defects:"
+              disabled={isReadOnly}
+              rows={2}
+            />
+          </div>
         </div>
-        <div>
-          <label className={labelClass}>Works Ongoing</label>
-          <textarea
-            className={`${textareaClass} ${isReadOnly ? 'bg-gray-50' : ''}`}
-            value={value.worksOngoing}
-            onChange={(e) => onChange('worksOngoing', e.target.value)}
-            placeholder="The following works are ongoing:"
-            disabled={isReadOnly}
-            readOnly={isReadOnly}
-          />
-        </div>
-        <div>
-          <label className={labelClass}>Materials Found on Site</label>
-          <textarea
-            className={`${textareaClass} ${isReadOnly ? 'bg-gray-50' : ''}`}
-            value={value.materialsFoundOnSite}
-            onChange={(e) => onChange('materialsFoundOnSite', e.target.value)}
-            placeholder="The following materials were found on site:"
-            disabled={isReadOnly}
-            readOnly={isReadOnly}
-          />
-        </div>
-        <div>
-          <label className={labelClass}>Defects Noted</label>
-          <textarea
-            className={`${textareaClass} ${isReadOnly ? 'bg-gray-50' : ''}`}
-            value={value.defectsNotedOnSite}
-            onChange={(e) => onChange('defectsNotedOnSite', e.target.value)}
-            placeholder="The following defects (design deficiencies, warped beams and slab, visible cracks, plumbing issues etc.) were noted on site:"
-            rows={4}
-            disabled={isReadOnly}
-            readOnly={isReadOnly}
-          />
-        </div>
-      </section>
+      </div>
 
-      {/* Conclusion */}
-      <section className={pageCardClass}>
-        <h4 className="text-sm font-semibold text-gray-900">Conclusion</h4>
+      {/* Drawdown Request */}
+      <div className="py-3">
+        {/* CHANGED: Made header bolder */}
+        <h4 className={labelClass}>Drawdown Request</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
-            <label className={labelClass}>Drawdown Request No.</label>
+            <label className="text-[10px] text-[#677D6A] block mb-0.5">Request No.</label>
             <input
-              className={`${inputClass} ${isReadOnly ? 'bg-gray-50' : ''}`}
+              className={inputClass}
               value={value.drawdownRequestNo}
               onChange={(e) => onChange('drawdownRequestNo', e.target.value)}
               placeholder="Request number"
               disabled={isReadOnly}
-              readOnly={isReadOnly}
             />
           </div>
           <div>
-            <label className={labelClass}>Drawdown Amount Requested (KES)</label>
+            <label className="text-[10px] text-[#677D6A] block mb-0.5">Amount (KES)</label>
             <input
               type="number"
-              className={`${inputClass} ${isReadOnly ? 'bg-gray-50' : ''}`}
+              className={inputClass}
               value={value.drawdownKesAmount}
               onChange={(e) => onChange('drawdownKesAmount', e.target.value)}
               placeholder="0.00"
               disabled={isReadOnly}
-              readOnly={isReadOnly}
             />
           </div>
         </div>
-      </section>
+      </div>
     </div>
   )
 }
 
-// Step 4: Documents Component - UPDATED with clean filenames
+// Step 4: Documents - BOLDER headers
 const DocumentsSection: React.FC<{
   value: SiteVisitCallReportForm;
   onChange: (field: keyof SiteVisitCallReportForm, value: any) => void;
@@ -753,7 +727,6 @@ const DocumentsSection: React.FC<{
   isReadOnly?: boolean;
 }> = ({ value, onChange, onNestedChange, isReadOnly = false }) => {
   
-  // Helper functions for document updates
   const handleDocumentSelection = (field: keyof SiteVisitSubmittedDocs, selection: string) => {
     onNestedChange(field, selection)
   }
@@ -775,12 +748,13 @@ const DocumentsSection: React.FC<{
   }
 
   return (
-    <div className="space-y-3">
-      <section className={pageCardClass}>
-        <h4 className="text-sm font-semibold text-gray-900 mb-3">Submitted Documents</h4>
-        <div className="space-y-3">
+    <div className={sectionClass}>
+      <div className="py-3 border-b border-[#D6BD98]/10">
+        {/* CHANGED: Made header bolder */}
+        <h4 className={labelClass}>Submitted Documents</h4>
+        <div className="space-y-2">
           <DocumentItem
-            label="QS Valuation of works done"
+            label="QS Valuation"
             documentKey="qsValuation"
             value={value.documentsSubmitted}
             onSelectionChange={handleDocumentSelection}
@@ -800,7 +774,7 @@ const DocumentsSection: React.FC<{
           />
           
           <DocumentItem
-            label="Customer Instructions Letter"
+            label="Customer Instructions"
             documentKey="customerInstructionLetter"
             value={value.documentsSubmitted}
             onSelectionChange={handleDocumentSelection}
@@ -810,7 +784,7 @@ const DocumentsSection: React.FC<{
           />
           
           <DocumentItem
-            label="Contractor's Site Progress Report"
+            label="Contractor's Progress"
             documentKey="contractorProgressReport"
             value={value.documentsSubmitted}
             onSelectionChange={handleDocumentSelection}
@@ -820,7 +794,7 @@ const DocumentsSection: React.FC<{
           />
           
           <DocumentItem
-            label="Contractor's Invoice (where applicable)"
+            label="Contractor's Invoice"
             documentKey="contractorInvoice"
             value={value.documentsSubmitted}
             onSelectionChange={handleDocumentSelection}
@@ -829,58 +803,56 @@ const DocumentsSection: React.FC<{
             isReadOnly={isReadOnly}
           />
         </div>
-      </section>
+      </div>
 
-      <section className={pageCardClass}>
-        <h4 className="text-sm font-semibold text-gray-900">Document Sign-off</h4>
+      <div className="py-3">
+        {/* CHANGED: Made header bolder */}
+        <h4 className={labelClass}>Sign-off</h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
-            <label className={labelClass}>Prepared By</label>
+            <label className="text-[8px] text-[#677D6A] block mb-0.5">Prepared By</label>
             <input
-              className={`${inputClass} ${isReadOnly ? 'bg-gray-50' : ''}`}
+              className={inputClass}
               value={value.preparedBy}
               onChange={(e) => onChange('preparedBy', e.target.value)}
               placeholder="Name"
               disabled={isReadOnly}
-              readOnly={isReadOnly}
             />
           </div>
           <div>
-            <label className={labelClass}>Signature</label>
+            <label className="text-[8px] text-[#677D6A] block mb-0.5">Signature</label>
             <input
-              className={`${inputClass} ${isReadOnly ? 'bg-gray-50' : ''}`}
+              className={inputClass}
               value={value.signature}
               onChange={(e) => onChange('signature', e.target.value)}
               placeholder="Signature"
               disabled={isReadOnly}
-              readOnly={isReadOnly}
             />
           </div>
           <div>
-            <label className={labelClass}>Date</label>
+            <label className="text-[8px] text-[#677D6A] block mb-0.5">Date</label>
             <input
-              className={`${inputClass} ${isReadOnly ? 'bg-gray-50' : ''}`}
+              className={inputClass}
               type="date"
               value={value.preparedDate}
               onChange={(e) => onChange('preparedDate', e.target.value)}
               disabled={isReadOnly}
-              readOnly={isReadOnly}
             />
           </div>
         </div>
-      </section>
+      </div>
     </div>
   )
 }
 
-// Step 5: Photos Component
+// Step 5: Photos - BOLDER headers
 const PhotosSection: React.FC<{
   value: SiteVisitCallReportForm;
   onChange: (field: keyof SiteVisitCallReportForm, value: any) => void;
   isReadOnly?: boolean;
 }> = ({ value, onChange, isReadOnly = false }) => {
   return (
-    <div className="space-y-3">
+    <div className={sectionClass}>
       <PhotoGrid
         title="Progress Photos"
         sectionKey="progress-page-3"
@@ -928,7 +900,6 @@ const SiteVisitCallReportFormComponent: React.FC<Props> = ({ value, onChange, ac
     }
   }
 
-  // Render only the active step
   switch (activeStep) {
     case 1:
       return <CustomerInfoSection value={value} onChange={updateField} isReadOnly={isReadOnly} />
