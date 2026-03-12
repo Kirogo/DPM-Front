@@ -15,14 +15,17 @@ import {
   FiCalendar,
   FiChevronRight,
   FiUser,
-  FiClock
+  FiClock,
+  FiHash,
+  FiCreditCard,
+  FiBriefcase
 } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 import { formatNairobiDate } from '@/utils/dateUtils'
 
 type ReviewTab = 'pending' | 'progress' | 'completed'
 
-// Status badge component
+// Status badge component - REDUCED SIZE
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   const statusLower = status?.toLowerCase() || 'pending'
 
@@ -45,7 +48,7 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   const config = statusConfig[statusLower] || statusConfig.pending
 
   return (
-    <span className={`${config.bgColor} ${config.color} px-2 py-1 rounded-full text-[8px] lg:text-[10px] font-medium whitespace-nowrap`}>
+    <span className={`${config.bgColor} ${config.color} px-1.5 py-0.5 rounded-full text-[7px] lg:text-[9px] font-medium whitespace-nowrap`}>
       {config.label}
     </span>
   )
@@ -232,7 +235,10 @@ export const QSReviewsPage: React.FC = () => {
     searchTerm === '' ||
     (report.reportNo?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
     (report.customerName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-    (report.projectName?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+    (report.projectName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (report.customerNumber?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (report.ibpsNo?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (report.rmName?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   )
 
   const getTabLabel = (tab: ReviewTab) => {
@@ -266,36 +272,28 @@ export const QSReviewsPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Header */}
+      {/* Header - REDUCED SIZE */}
       <div className="bg-white border-b border-[#D6BD98]/20 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
-              <h1 className="text-xl font-bold text-[#1A3636]">Review Reports</h1>
-              <p className="text-xs lg:text-sm text-[#677D6A] mt-1">
+              <h1 className="text-lg font-bold text-[#1A3636]">Review Reports</h1>
+              <p className="text-[10px] lg:text-xs text-[#677D6A] mt-0.5">
                 {getTabDescription(activeTab)}
               </p>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => navigate('/qs/analytics')}
-              className="h-8 text-xs w-full sm:w-auto"
-            >
-              View Analytics
-            </Button>
           </div>
 
-          {/* Tabs with Refresh Button */}
-          <div className="flex items-center justify-between mt-4">
-            <div className="flex gap-4 lg:gap-6 overflow-x-auto scrollbar-hide border-b border-[#D6BD98]/20 flex-1">
+          {/* Tabs with Refresh Button - REDUCED SIZE */}
+          <div className="flex items-center justify-between mt-3">
+            <div className="flex gap-3 lg:gap-4 overflow-x-auto scrollbar-hide border-b border-[#D6BD98]/20 flex-1">
               <button
                 onClick={() => {
                   setActiveTab('pending')
                   setPage(1)
                   navigate('/qs/reviews/pending')
                 }}
-                className={`pb-2 text-xs lg:text-sm font-medium whitespace-nowrap ${activeTab === 'pending'
+                className={`pb-1.5 text-[10px] lg:text-xs font-medium whitespace-nowrap ${activeTab === 'pending'
                     ? 'text-[#1A3636] border-b-2 border-[#1A3636]'
                     : 'text-[#677D6A] hover:text-[#40534C]'
                   }`}
@@ -308,7 +306,7 @@ export const QSReviewsPage: React.FC = () => {
                   setPage(1)
                   navigate('/qs/reviews/progress')
                 }}
-                className={`pb-2 text-xs lg:text-sm font-medium whitespace-nowrap ${activeTab === 'progress'
+                className={`pb-1.5 text-[10px] lg:text-xs font-medium whitespace-nowrap ${activeTab === 'progress'
                     ? 'text-[#1A3636] border-b-2 border-[#1A3636]'
                     : 'text-[#677D6A] hover:text-[#40534C]'
                   }`}
@@ -321,7 +319,7 @@ export const QSReviewsPage: React.FC = () => {
                   setPage(1)
                   navigate('/qs/reviews/completed')
                 }}
-                className={`pb-2 text-xs lg:text-sm font-medium whitespace-nowrap ${activeTab === 'completed'
+                className={`pb-1.5 text-[10px] lg:text-xs font-medium whitespace-nowrap ${activeTab === 'completed'
                     ? 'text-[#1A3636] border-b-2 border-[#1A3636]'
                     : 'text-[#677D6A] hover:text-[#40534C]'
                   }`}
@@ -332,23 +330,23 @@ export const QSReviewsPage: React.FC = () => {
             <button
               onClick={handleRefresh}
               disabled={isRefreshing}
-              className="ml-2 p-2 text-[#677D6A] hover:text-[#1A3636] hover:bg-[#D6BD98]/10 rounded-lg transition-all"
+              className="ml-2 p-1.5 text-[#677D6A] hover:text-[#1A3636] hover:bg-[#D6BD98]/10 rounded-lg transition-all"
               title="Refresh reviews"
             >
-              <FiRefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <FiRefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
             </button>
           </div>
 
-          {/* Search */}
-          <div className="mt-4">
+          {/* Search - REDUCED SIZE */}
+          <div className="mt-3">
             <div className="relative">
-              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-[#677D6A] w-4 h-4" />
+              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-[#677D6A] w-3.5 h-3.5" />
               <input
                 type="text"
                 placeholder={`Search ${getTabLabel(activeTab).toLowerCase()} reports...`}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-[#D6BD98]/30 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#677D6A]/20"
+                className="w-full pl-9 pr-4 py-1.5 border border-[#D6BD98]/30 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#677D6A]/20"
               />
             </div>
           </div>
@@ -356,57 +354,79 @@ export const QSReviewsPage: React.FC = () => {
       </div>
 
       {/* Reports Table */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 lg:py-4">
         {isMobile ? (
-          /* Mobile view */
+          /* Mobile view - REDUCED SIZE with additional fields */
           <div className="border border-[#D6BD98]/20 rounded-lg overflow-hidden bg-white">
-            <div className="grid grid-cols-3 gap-1 px-3 py-2 bg-[#F5F7F4] border-b border-[#D6BD98]/20 text-[9px] font-bold text-[#40534C] uppercase tracking-wider">
+            <div className="grid grid-cols-4 gap-1 px-2 py-1.5 bg-[#F5F7F4] border-b border-[#D6BD98]/20 text-[8px] font-bold text-[#40534C] uppercase tracking-wider">
               <div className="col-span-1">Report</div>
               <div className="col-span-1">Customer</div>
-              <div className="col-span-1 text-right">Status</div>
+              <div className="col-span-1">Status</div>
+              <div className="col-span-1 text-right">RM</div>
             </div>
 
             <div className="overflow-y-auto max-h-[calc(100vh-280px)] bg-white">
               {filteredReports.length === 0 ? (
-                <div className="p-8 text-center">
-                  <FiClock className="w-8 h-8 text-[#D6BD98] mx-auto mb-2" />
-                  <p className="text-xs text-[#40534C]">No {getTabLabel(activeTab).toLowerCase()} reviews found</p>
+                <div className="p-6 text-center">
+                  <FiClock className="w-6 h-6 text-[#D6BD98] mx-auto mb-1" />
+                  <p className="text-[9px] text-[#40534C]">No {getTabLabel(activeTab).toLowerCase()} reviews found</p>
                 </div>
               ) : (
                 filteredReports.map((report) => (
                   <div
                     key={report.id}
                     onClick={() => handleView(report.id)}
-                    className="p-3 border-b border-[#D6BD98]/10 last:border-0 hover:bg-[#D6BD98]/5 transition-colors cursor-pointer active:bg-[#D6BD98]/10"
+                    className="p-2 border-b border-[#D6BD98]/10 last:border-0 hover:bg-[#D6BD98]/5 transition-colors cursor-pointer active:bg-[#D6BD98]/10"
                   >
-                    <div className="grid grid-cols-3 gap-1 text-[10px] items-center">
+                    <div className="grid grid-cols-4 gap-1 text-[9px] items-center">
                       <div className="col-span-1 font-bold text-[#1A3636] truncate">
-                        {report.reportNo || `CRN-${report.id?.slice(0, 6)}`}
+                        {report.reportNo || `CRN-${report.id?.slice(0, 5)}`}
                       </div>
 
-                      <div className="col-span-1 text-[#40534C] truncate text-[9px]">
-                        {report.customerName || report.projectName || '—'}
+                      <div className="col-span-1 text-[#40534C] truncate text-[8px]">
+                        {report.customerName || '—'}
+                        {report.customerNumber && <span className="block text-[6px] text-[#677D6A]">#{report.customerNumber}</span>}
                       </div>
 
-                      <div className="col-span-1 text-right">
+                      <div className="col-span-1">
                         <StatusBadge status={report.status || 'pending'} />
+                      </div>
+
+                      <div className="col-span-1 text-right text-[8px] text-[#677D6A] truncate">
+                        {report.rmName || '—'}
                       </div>
                     </div>
 
+                    {/* Additional info row for mobile */}
+                    {(report.ibpsNo || report.projectName) && (
+                      <div className="mt-1 flex items-center gap-2 text-[6px] text-[#677D6A]">
+                        {report.ibpsNo && (
+                          <span className="flex items-center gap-0.5">
+                            <FiCreditCard className="w-2 h-2" /> {report.ibpsNo}
+                          </span>
+                        )}
+                        {report.projectName && (
+                          <span className="flex items-center gap-0.5 truncate">
+                            <FiBriefcase className="w-2 h-2" /> {report.projectName}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
                     {activeTab === 'pending' && (
-                      <div className="mt-2 flex justify-end">
+                      <div className="mt-1.5 flex justify-end">
                         <button
                           onClick={(e) => handleAssignToMe(report.id, e)}
-                          className="px-2 py-1 text-[8px] font-medium text-[#1A3636] bg-[#D6BD98]/10 rounded hover:bg-[#D6BD98]/20"
+                          className="px-1.5 py-0.5 text-[7px] font-medium text-[#1A3636] bg-[#D6BD98]/10 rounded hover:bg-[#D6BD98]/20"
                         >
-                          Assign to me
+                          Assign
                         </button>
                       </div>
                     )}
                     
                     {activeTab === 'progress' && report.status === 'rework' && (
-                      <div className="mt-2 text-[8px] text-orange-600 text-right">
-                        Returned to RM for changes
+                      <div className="mt-1 text-[7px] text-orange-600 text-right">
+                        Returned for changes
                       </div>
                     )}
                   </div>
@@ -415,20 +435,23 @@ export const QSReviewsPage: React.FC = () => {
             </div>
           </div>
         ) : (
-          /* Desktop view */
+          /* Desktop view - ADDED 3 COLUMNS, REDUCED SIZE */
           <div className="border border-[#D6BD98]/20 rounded-lg overflow-hidden bg-white">
-            <div className="grid grid-cols-12 gap-2 px-4 py-3 bg-[#F5F7F4] border-b border-[#D6BD98]/20 text-xs font-bold text-[#40534C] uppercase tracking-wider">
-              <div className="col-span-2">Report No.</div>
-              <div className="col-span-3">Customer</div>
+            <div className="grid grid-cols-12 gap-1 px-3 py-2 bg-[#F5F7F4] border-b border-[#D6BD98]/20 text-[9px] font-bold text-[#40534C] uppercase tracking-wider">
+              <div className="col-span-1">Report</div>
+              <div className="col-span-2">Customer</div>
+              <div className="col-span-1">Cus No</div>
+              <div className="col-span-1">IBPS No</div>
               <div className="col-span-2">Project</div>
-              <div className="col-span-2">Submitted</div>
-              <div className="col-span-2">Status</div>
+              <div className="col-span-2">RM</div>
+              <div className="col-span-1">Submitted</div>
+              <div className="col-span-1">Status</div>
               <div className="col-span-1">Action</div>
             </div>
 
             <div className="divide-y divide-[#D6BD98]/10">
               {filteredReports.length === 0 ? (
-                <div className="px-4 py-8 text-center text-[#677D6A]">
+                <div className="px-4 py-6 text-center text-[#677D6A] text-xs">
                   No {getTabLabel(activeTab).toLowerCase()} reviews found
                 </div>
               ) : (
@@ -436,43 +459,53 @@ export const QSReviewsPage: React.FC = () => {
                   <div
                     key={report.id}
                     onClick={() => handleView(report.id)}
-                    className="grid grid-cols-12 gap-2 px-4 py-3 hover:bg-[#D6BD98]/5 transition-colors cursor-pointer text-sm"
+                    className="grid grid-cols-12 gap-1 px-3 py-2 hover:bg-[#D6BD98]/5 transition-colors cursor-pointer text-xs"
                   >
-                    <div className="col-span-2 font-bold text-[#1A3636] truncate">
-                      {report.reportNo || `CRN-${report.id?.slice(0, 8)}`}
+                    <div className="col-span-1 text-[#1A3636] truncate text-[11px]">
+                      {report.reportNo || `CRN-${report.id?.slice(0, 6)}`}
                     </div>
 
-                    <div className="col-span-3 text-[#40534C] truncate">
+                    <div className="col-span-2 text-[#40534C] truncate text-[11px]">
                       {report.customerName || report.clientName || '—'}
                     </div>
 
-                    <div className="col-span-2 text-[#40534C] truncate">
+                    <div className="col-span-1 text-[#677D6A] truncate text-[10px]">
+                      {report.customerNumber || '—'}
+                    </div>
+
+                    <div className="col-span-1 text-[#677D6A] truncate text-[10px]">
+                      {report.ibpsNo || '—'}
+                    </div>
+
+                    <div className="col-span-2 text-[#40534C] truncate text-[10px]">
                       {report.projectName || report.title || '—'}
                     </div>
 
-                    <div className="col-span-2 text-[#677D6A] text-xs flex items-center gap-1">
-                      <FiCalendar className="w-3 h-3" />
+                    <div className="col-span-2 text-[#677D6A] truncate text-[10px] flex items-center gap-0.5">
+                      <span className="truncate">{report.rmName || '—'}</span>
+                    </div>
+
+                    <div className="col-span-1 text-[#677D6A] text-[9px] flex items-center gap-1">
                       {formatNairobiDate(report.submittedAt || report.createdAt)}
                     </div>
 
-                    <div className="col-span-2">
+                    <div className="col-span-1">
                       <StatusBadge status={report.status || 'pending'} />
                     </div>
 
-                    <div className="col-span-1 flex items-center gap-1">
-                      {activeTab === 'pending' && (
+                    <div className="col-span-1 flex items-center">
+                      {activeTab === 'pending' ? (
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
                             handleAssignToMe(report.id, e)
                           }}
-                          className="px-2 py-1 text-[9px] font-bold text-[#1A3636] bg-[#D6BD98]/10 rounded hover:bg-[#D6BD98]/20 transition-colors"
+                          className="px-1.5 py-0.5 text-[8px] font-bold text-[#1A3636] bg-[#D6BD98]/10 rounded hover:bg-[#D6BD98]/20 transition-colors"
                         >
                           Assign
                         </button>
-                      )}
-                      {activeTab !== 'pending' && (
-                        <FiChevronRight className="w-4 h-4 text-[#677D6A]" />
+                      ) : (
+                        <FiChevronRight className="w-3 h-3 text-[#677D6A]" />
                       )}
                     </div>
                   </div>
@@ -482,23 +515,23 @@ export const QSReviewsPage: React.FC = () => {
           </div>
         )}
 
-        {/* Pagination */}
+        {/* Pagination - REDUCED SIZE */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-4">
+          <div className="flex items-center justify-between mt-3">
             <button
               onClick={() => setPage(p => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="px-3 py-1 text-xs text-[#1A3636] bg-white border border-[#D6BD98]/20 rounded disabled:opacity-50"
+              className="px-2 py-1 text-[10px] text-[#1A3636] bg-white border border-[#D6BD98]/20 rounded disabled:opacity-50"
             >
               Previous
             </button>
-            <span className="text-xs text-[#677D6A]">
+            <span className="text-[10px] text-[#677D6A]">
               Page {page} of {totalPages}
             </span>
             <button
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
-              className="px-3 py-1 text-xs text-[#1A3636] bg-white border border-[#D6BD98]/20 rounded disabled:opacity-50"
+              className="px-2 py-1 text-[10px] text-[#1A3636] bg-white border border-[#D6BD98]/20 rounded disabled:opacity-50"
             >
               Next
             </button>

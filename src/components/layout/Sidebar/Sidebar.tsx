@@ -65,6 +65,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isDesktop }) => {
       path: '/dashboard',
       icon: FiHome,
     },
+
+    // RM Menu Items
     {
       id: 'my-reports',
       label: 'My Reports',
@@ -93,6 +95,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isDesktop }) => {
       icon: FiFileText,
       roles: ['rm'],
     },
+
+    // QS Menu Items
     {
       id: 'pending-reviews',
       label: 'Reports',
@@ -107,6 +111,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ isDesktop }) => {
       icon: FiMapPin,
       roles: ['qs'],
     },
+    {
+      id: 'all-reports',
+      label: 'All Reports',
+      path: '/rm/all-reports',
+      icon: FiFileText,
+      roles: ['qs'],
+    },
+
+    // Admin Menu Items
     {
       id: 'users',
       label: 'Manage Users',
