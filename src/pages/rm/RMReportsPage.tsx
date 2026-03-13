@@ -16,7 +16,9 @@ import {
   FiUser,
   FiBriefcase,
   FiCreditCard,
-  FiCalendar
+  FiCalendar,
+  FiChevronLeft,
+  FiChevronRight
 } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 
@@ -44,6 +46,39 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   )
 }
 
+// Pagination component
+const Pagination: React.FC<{
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+}> = ({ currentPage, totalPages, onPageChange }) => {
+  if (totalPages <= 1) return null;
+  
+  return (
+    <div className="flex items-center justify-between mt-3 px-1">
+      <button
+        onClick={() => onPageChange(currentPage - 1)}
+        disabled={currentPage === 1}
+        className="flex items-center gap-1 px-2 py-1 text-[10px] text-[#1A3636] bg-white border border-[#D6BD98]/20 rounded disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#F5F7F4] transition-colors"
+      >
+        <FiChevronLeft className="w-3 h-3" />
+        Previous
+      </button>
+      <span className="text-[10px] text-[#677D6A]">
+        Page {currentPage} of {totalPages}
+      </span>
+      <button
+        onClick={() => onPageChange(currentPage + 1)}
+        disabled={currentPage === totalPages}
+        className="flex items-center gap-1 px-2 py-1 text-[10px] text-[#1A3636] bg-white border border-[#D6BD98]/20 rounded disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#F5F7F4] transition-colors"
+      >
+        Next
+        <FiChevronRight className="w-3 h-3" />
+      </button>
+    </div>
+  );
+};
+
 export const RMReportsPage: React.FC = () => {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -54,9 +89,16 @@ export const RMReportsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [isCreatorOpen, setIsCreatorOpen] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage] = useState(15)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   
   const { data: checklists, isLoading, error, refetch } = useGetAllRmChecklistsQuery()
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [activeTab, searchTerm])
 
   // Save current path before navigating to detail
   useEffect(() => {
@@ -117,6 +159,13 @@ export const RMReportsPage: React.FC = () => {
     
     return matchesSearch
   })
+
+  // Pagination
+  const totalPages = Math.ceil(filteredReports.length / itemsPerPage)
+  const paginatedReports = filteredReports.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  )
 
   const tabCounts = {
     new: myReports.filter(r => r.status?.toLowerCase() === 'pending').length,
@@ -259,16 +308,16 @@ export const RMReportsPage: React.FC = () => {
             
             <div 
               ref={scrollContainerRef}
-              className="overflow-y-auto max-h-[calc(100vh-280px)] bg-white"
+              className="overflow-y-auto max-h-[calc(100vh-350px)] bg-white"
               style={{ WebkitOverflowScrolling: 'touch' }}
             >
-              {filteredReports.length === 0 ? (
+              {paginatedReports.length === 0 ? (
                 <div className="p-6 text-center">
                   <FiEye className="w-6 h-6 text-[#D6BD98] mx-auto mb-1" />
                   <p className="text-[9px] text-[#40534C]">No reports found</p>
                 </div>
               ) : (
-                filteredReports.map((report) => (
+                paginatedReports.map((report) => (
                   <div
                     key={report.id}
                     onClick={() => handleView(report.id)}
@@ -321,51 +370,60 @@ export const RMReportsPage: React.FC = () => {
               <div className="col-span-1">Status</div>
             </div>
 
-            <div className="divide-y divide-[#D6BD98]/10">
-              {filteredReports.length === 0 ? (
-                <div className="px-4 py-6 text-center text-[#677D6A] text-xs">
-                  No reports found
-                </div>
-              ) : (
-                filteredReports.map((report) => (
-                  <div
-                    key={report.id}
-                    onClick={() => handleView(report.id)}
-                    className="grid grid-cols-12 gap-1 px-3 py-2 hover:bg-[#D6BD98]/5 transition-colors cursor-pointer text-xs"
-                  >
-                    <div className="col-span-2 text-[#1A3636] truncate text-[11px] italic">
-                      {report.reportNo || '—'}
-                    </div>
-
-                    <div className="col-span-3 text-[#40534C] truncate text-[11px]">
-                      {report.customerName || report.clientName || '—'}
-                    </div>
-
-                    <div className="col-span-1 text-[#677D6A] truncate text-[10px]">
-                      {report.customerNumber || '—'}
-                    </div>
-
-                    <div className="col-span-1 text-[#677D6A] truncate text-[10px]">
-                      {report.ibpsNo || '—'}
-                    </div>
-
-                    <div className="col-span-3 text-[#40534C] truncate text-[10px]">
-                      {report.projectName || report.title || '—'}
-                    </div>
-
-                    <div className="col-span-1 text-[#677D6A] text-[9px] flex items-center gap-1">
-                      {formatNairobiDate(report.updatedAt || report.createdAt)}
-                    </div>
-
-                    <div className="col-span-1">
-                      <StatusBadge status={report.status || 'pending'} />
-                    </div>
+            <div className="overflow-y-auto max-h-[calc(100vh-350px)]">
+              <div className="divide-y divide-[#D6BD98]/10">
+                {paginatedReports.length === 0 ? (
+                  <div className="px-4 py-6 text-center text-[#677D6A] text-xs">
+                    No reports found
                   </div>
-                ))
-              )}
+                ) : (
+                  paginatedReports.map((report) => (
+                    <div
+                      key={report.id}
+                      onClick={() => handleView(report.id)}
+                      className="grid grid-cols-12 gap-1 px-3 py-2 hover:bg-[#D6BD98]/5 transition-colors cursor-pointer text-xs"
+                    >
+                      <div className="col-span-2 text-[#1A3636] truncate text-[11px] italic">
+                        {report.reportNo || '—'}
+                      </div>
+
+                      <div className="col-span-3 text-[#40534C] truncate text-[11px]">
+                        {report.customerName || report.clientName || '—'}
+                      </div>
+
+                      <div className="col-span-1 text-[#677D6A] truncate text-[10px]">
+                        {report.customerNumber || '—'}
+                      </div>
+
+                      <div className="col-span-1 text-[#677D6A] truncate text-[10px]">
+                        {report.ibpsNo || '—'}
+                      </div>
+
+                      <div className="col-span-3 text-[#40534C] truncate text-[10px]">
+                        {report.projectName || report.title || '—'}
+                      </div>
+
+                      <div className="col-span-1 text-[#677D6A] text-[9px]">
+                        {formatNairobiDate(report.updatedAt || report.createdAt)}
+                      </div>
+
+                      <div className="col-span-1">
+                        <StatusBadge status={report.status || 'pending'} />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         )}
+
+        {/* Pagination */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </div>
   )

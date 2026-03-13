@@ -1,131 +1,74 @@
 // src/services/api/qsApi.ts
 import axiosInstance from './axiosConfig'
-import { SiteVisitReport, ReviewDecision } from '@/types/report.types'
+import { SiteVisitReport, ReviewDecision, Comment } from '@/types/report.types'
 import { PaginatedResponse } from '@/types/common.types'
 
 export const qsApi = {
   // Get QS dashboard stats
   getDashboardStats: async () => {
-    const response = await axiosInstance.get('/qs/dashboard/stats')
+    const response = await axiosInstance.get('/Qs/dashboard/stats')
     return response
   },
 
   // Get pending reviews
   getPendingReviews: async (page = 1, pageSize = 10) => {
-    const response = await axiosInstance.get<PaginatedResponse<SiteVisitReport>>(
-      '/qs/reviews/pending',
-      { params: { page, pageSize } }
-    )
+    const response = await axiosInstance.get('/Qs/reviews/pending', {
+      params: { page, pageSize }
+    })
     return response
   },
 
-  // Get my active reviews - COMMENT OUT if backend doesn't have it
-  // getMyActiveReviews: async () => {
-  //   const response = await axiosInstance.get<SiteVisitReport[]>('/qs/reviews/my-active')
-  //   return response
-  // },
-
   // Get reviews in progress (rework status)
   getInProgressReviews: async (page = 1, pageSize = 10) => {
-    try {
-      const response = await axiosInstance.get<PaginatedResponse<SiteVisitReport>>(
-        '/qs/reviews/in-progress',
-        { params: { page, pageSize } }
-      )
-      return response
-    } catch (error) {
-      console.log('In-progress endpoint not available yet, using fallback')
-      // Return empty paginated response
-      return Promise.resolve({
-        data: {
-          items: [],
-          total: 0,
-          page: page,
-          pageSize: pageSize,
-          totalPages: 0
-        }
-      })
-    }
+    const response = await axiosInstance.get('/Qs/reviews/in-progress', {
+      params: { page, pageSize }
+    })
+    return response
   },
 
   // Get completed reviews (approved status)
   getCompletedReviews: async (page = 1, pageSize = 10) => {
+    const response = await axiosInstance.get('/Qs/reviews/completed', {
+      params: { page, pageSize }
+    })
+    return response
+  },
+
+  // Get report details
+  getReportDetails: async (reportId: string) => {
+    const response = await axiosInstance.get(`/Qs/reviews/${reportId}`)
+    return response
+  },
+
+  // Get comments for a report
+  getReportComments: async (reportId: string): Promise<{ data: Comment[] }> => {
     try {
-      const response = await axiosInstance.get<PaginatedResponse<SiteVisitReport>>(
-        '/qs/reviews/completed',
-        { params: { page, pageSize } }
-      )
-      return response
+      const response = await axiosInstance.get(`/Qs/reviews/${reportId}/comments`)
+      return { data: response.data }
     } catch (error) {
-      console.log('Completed endpoint not available yet, using fallback')
-      // Return empty paginated response
-      return Promise.resolve({
-        data: {
-          items: [],
-          total: 0,
-          page: page,
-          pageSize: pageSize,
-          totalPages: 0
-        }
-      })
+      console.error('Error fetching comments:', error)
+      return { data: [] }
     }
   },
 
-  // Get scheduled site visits
-  getScheduledVisits: async (date?: Date) => {
-    try {
-      const response = await axiosInstance.get('/qs/site-visits/upcoming', {
-        params: { date },
-      })
-      return response
-    } catch (error) {
-      console.log('Scheduled visits endpoint not available yet')
-      // Return empty array
-      return Promise.resolve({
-        data: []
-      })
-    }
-  },
-
-  // Review report
-  reviewReport: async (reportId: string, decision: Partial<ReviewDecision>) => {
-    const response = await axiosInstance.post(`/qs/reviews/${reportId}/review`, decision)
+  // Add comment to review
+  addReviewComment: async (reportId: string, content: string, isInternal = false): Promise<{ data: Comment }> => {
+    const response = await axiosInstance.post(`/Qs/reviews/${reportId}/comments`, {
+      comment: content,
+      isInternal
+    })
     return response
   },
 
   // Assign report to self
   assignReport: async (reportId: string) => {
-    const response = await axiosInstance.post(`/qs/reviews/${reportId}/assign`)
-    return response
-  },
-
-  // Get review history
-  getReviewHistory: async (page = 1, pageSize = 10) => {
-    try {
-      const response = await axiosInstance.get('/qs/reviews/history', {
-        params: { page, pageSize },
-      })
-      return response
-    } catch (error) {
-      console.log('Review history endpoint not available yet')
-      return Promise.resolve({
-        data: []
-      })
-    }
-  },
-
-  // Add comment to review
-  addReviewComment: async (reportId: string, comment: string, isInternal = true) => {
-    const response = await axiosInstance.post(`/qs/reviews/${reportId}/comments`, {
-      comment,
-      isInternal,
-    })
+    const response = await axiosInstance.post(`/Qs/reviews/${reportId}/assign`)
     return response
   },
 
   // Request revision (rework)
   requestRevision: async (reportId: string, notes: string, requiredChanges: string[]) => {
-    const response = await axiosInstance.post(`/qs/reviews/${reportId}/revision`, {
+    const response = await axiosInstance.post(`/Qs/reviews/${reportId}/revision`, {
       notes,
       requiredChanges,
     })
@@ -134,32 +77,26 @@ export const qsApi = {
 
   // Approve report
   approveReport: async (reportId: string, notes?: string) => {
-    const response = await axiosInstance.post(`/qs/reviews/${reportId}/approve`, { notes })
+    const response = await axiosInstance.post(`/Qs/reviews/${reportId}/approve`, 
+      notes ? { notes } : undefined
+    )
     return response
   },
 
   // Reject report
   rejectReport: async (reportId: string, reason: string) => {
-    const response = await axiosInstance.post(`/qs/reviews/${reportId}/reject`, { reason })
-    return response
-  },
-
-  // Get report details with comments
-  getReportDetails: async (reportId: string) => {
-    const response = await axiosInstance.get(`/qs/reviews/${reportId}`)
+    const response = await axiosInstance.post(`/Qs/reviews/${reportId}/reject`, { reason })
     return response
   },
 
   // Get report audit trail
   getReportAuditTrail: async (reportId: string) => {
     try {
-      const response = await axiosInstance.get(`/qs/reviews/${reportId}/audit`)
+      const response = await axiosInstance.get(`/Qs/reviews/${reportId}/audit`)
       return response
     } catch (error) {
       console.log('Audit trail endpoint not available yet')
-      return Promise.resolve({
-        data: []
-      })
+      return { data: [] }
     }
   }
 }

@@ -1,5 +1,5 @@
 // src/pages/rm/RMDashboard.tsx
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { useGetAllRmChecklistsQuery } from '@/services/api/checklistsApi'
@@ -12,7 +12,7 @@ import { Button } from '@/components/common/Button'
 import { ReportsTable } from '@/components/reports/ReportsTable'
 import { reportsApi } from '@/services/api/reportsApi'
 import { SiteVisitReport } from '@/types/report.types'
-import { FiPlus, FiMenu, FiX, FiCode } from 'react-icons/fi'
+import { FiPlus } from 'react-icons/fi'
 
 export const RMDashboard: React.FC = () => {
   const navigate = useNavigate()
@@ -22,14 +22,61 @@ export const RMDashboard: React.FC = () => {
   
   const [pendingReports, setPendingReports] = useState<SiteVisitReport[]>([])
   const [isLoadingPending, setIsLoadingPending] = useState(false)
-  const [showDummyData, setShowDummyData] = useState(false)
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const statsScrollRef = useRef<HTMLDivElement>(null)
 
-  // Transform checklists to reports format
-  const realReports = React.useMemo(() => {
+  // Transform all checklists to reports format
+  const allReports = useMemo(() => {
     return transformChecklistsToReports(checklists)
   }, [checklists])
+
+  // Filter reports to show ONLY the current RM's reports
+  const myReports = useMemo(() => {
+    if (!user || allReports.length === 0) return []
+    
+    console.log('Current user:', { 
+      id: user.id,
+      name: `${user.firstName} ${user.lastName}`.trim(),
+      email: user.email,
+      role: user.role
+    })
+    
+    console.log('All reports before filtering:', allReports.length)
+    
+    const filtered = allReports.filter(report => {
+      // Check multiple possible fields where RM info could be stored
+      
+      // 1. Check assignedToRM object (from Checklist interface)
+      if (report.assignedToRM) {
+        if (report.assignedToRM.id === user.id) return true
+        if (report.assignedToRM.name?.toLowerCase().includes(user.firstName?.toLowerCase() || '')) return true
+        if (report.assignedToRM.email?.toLowerCase() === user.email?.toLowerCase()) return true
+      }
+      
+      // 2. Check rmName field
+      if (report.rmName) {
+        const fullName = `${user.firstName} ${user.lastName}`.toLowerCase().trim()
+        const reportRmName = report.rmName.toLowerCase()
+        
+        if (reportRmName.includes(user.firstName?.toLowerCase() || '')) return true
+        if (reportRmName.includes(user.lastName?.toLowerCase() || '')) return true
+        if (reportRmName === fullName) return true
+      }
+      
+      // 3. Check rmId field
+      if (report.rmId === user.id) return true
+      
+      // 4. Check if report was created by this user
+      if (report.createdBy?.id === user.id) return true
+      if (report.createdBy?.name?.toLowerCase().includes(user.firstName?.toLowerCase() || '')) return true
+      
+      return false
+    })
+    
+    console.log('Filtered reports for current RM:', filtered.length)
+    console.log('First few filtered reports:', filtered.slice(0, 3))
+    
+    return filtered
+  }, [allReports, user])
 
   useEffect(() => {
     if (error) {
@@ -53,28 +100,49 @@ export const RMDashboard: React.FC = () => {
     fetchPendingReports()
   }, [])
 
-  const displayReports = realReports
-
-  // Calculate stats based on actual data
+  // Calculate stats based on filtered reports (ONLY current RM's reports)
   const stats = {
-    totalReports: displayReports?.length || 0,
-    pendingReviews: displayReports?.filter(r => 
+    totalReports: myReports?.length || 0,
+    
+    // Draft reports (status is 'draft' or 'pending' but not submitted)
+    drafts: myReports?.filter(r => 
+      r.status === 'draft' || 
+      r.status === 'pending'
+    ).length || 0,
+    
+    // Pending QS review
+    pendingReviews: myReports?.filter(r => 
       r.status === 'submitted' || 
       r.status === 'pending_qs_review' || 
       r.status === 'pendingqsreview'
     ).length || 0,
-    approved: displayReports?.filter(r => 
+    
+    // Approved reports
+    approved: myReports?.filter(r => 
       r.status === 'approved' || 
       r.status === 'completed'
     ).length || 0,
-    revisions: displayReports?.filter(r => 
+    
+    // Rework required
+    revisions: myReports?.filter(r => 
       r.status === 'rework' || 
       r.status === 'returned' || 
       r.status === 'revision_requested'
     ).length || 0,
   }
 
-  const recentReports = displayReports?.slice(0, 5) || []
+  // Log stats for debugging
+  useEffect(() => {
+    console.log('RM Dashboard Stats:', {
+      totalReports: stats.totalReports,
+      drafts: stats.drafts,
+      pendingReviews: stats.pendingReviews,
+      approved: stats.approved,
+      revisions: stats.revisions
+    })
+  }, [stats])
+
+  const recentReports = myReports?.slice(0, 5) || []
 
   useEffect(() => {
     const scrollContainer = statsScrollRef.current
@@ -150,7 +218,7 @@ export const RMDashboard: React.FC = () => {
 
       {/* Main Content */}
       <div className="px-4 sm:px-6 py-3 sm:py-4">
-        {/* Stats Cards */}
+        {/* Stats Cards - Now showing only current RM's stats */}
         <div className="relative -mx-4 sm:mx-0 mb-4 sm:mb-5">
           <div 
             ref={statsScrollRef}
@@ -158,12 +226,12 @@ export const RMDashboard: React.FC = () => {
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
             <div className="flex sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-2 min-w-max sm:min-w-0">
-              <StatsCards stats={stats} />
+              <StatsCards stats={stats} role="rm" />
             </div>
           </div>
         </div>
 
-        {/* Pending QS Reviews Section */}
+        {/* Pending QS Reviews Section - Shows only this RM's pending reports */}
         {pendingReports.length > 0 && (
           <section className="mb-4 sm:mb-5">
             <div className="flex items-center gap-1.5 mb-2">
@@ -184,7 +252,7 @@ export const RMDashboard: React.FC = () => {
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-5">
           <div className="lg:col-span-2">
-            <ProgressTrail reports={displayReports} isLoading={isLoading} />
+            <ProgressTrail reports={myReports} isLoading={isLoading} />
           </div>
           <div className="lg:col-span-1">
             <div className="border border-[#D6BD98]/20 rounded-lg bg-white p-3">

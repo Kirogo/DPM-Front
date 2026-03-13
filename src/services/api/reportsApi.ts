@@ -1,4 +1,4 @@
-// src/services/api/reportsApi.ts
+// src/services/api/reportsApi.ts (update the getComments method)
 import axiosInstance from './axiosConfig'
 import {
   SiteVisitReport,
@@ -49,13 +49,9 @@ export const reportsApi = {
   },
 
   // Get all reports with pagination and filters
-  // This uses the rmChecklist endpoint since that's what's implemented
   getReports: async (params: any) => {
     try {
-      // Use the checklist API endpoint instead of reports
       const response = await axiosInstance.get('/rmChecklist', { params })
-      
-      // Transform the response to match expected format
       return {
         data: {
           items: response.data || [],
@@ -71,7 +67,7 @@ export const reportsApi = {
     }
   },
 
-  // Get single report by ID - uses checklist endpoint
+  // Get single report by ID
   getReportById: async (id: string) => {
     try {
       const response = await axiosInstance.get(`/rmChecklist/${id}`)
@@ -82,13 +78,11 @@ export const reportsApi = {
     }
   },
 
-  // Create new report - uses checklist endpoint
+  // Create new report
   createReport: async (data: CreateReportDto) => {
     try {
-      // Remove files from the main report creation payload to send as JSON
       const { photos, attachments, ...reportData } = data
       
-      // Normalize status
       if (reportData.status) {
         reportData.status = reportsApi._mapStatusToServer(reportData.status)
       }
@@ -101,7 +95,7 @@ export const reportsApi = {
     }
   },
 
-  // Update report - uses checklist endpoint
+  // Update report
   updateReport: async (id: string, data: UpdateReportDto) => {
     try {
       const payload = { ...data }
@@ -118,12 +112,11 @@ export const reportsApi = {
 
   // Delete report
   deleteReport: async (id: string) => {
-    // Note: Delete might not be implemented in backend
     console.warn('Delete report not implemented in backend')
     throw new Error('Delete not implemented')
   },
 
-  // Submit report for review - uses custom submit endpoint
+  // Submit report for review
   submitReport: async (id: string, data: SubmitReportDto) => {
     try {
       const response = await axiosInstance.post(`/rmChecklist/${id}/submit`, data)
@@ -166,10 +159,14 @@ export const reportsApi = {
     throw new Error('Delete photo not implemented')
   },
 
-  // Add comment to report - uses QS API
+  // Add comment to report - UPDATED to use qsApi
   addComment: async (reportId: string, comment: Partial<Comment>) => {
     try {
-      const response = await qsApi.addReviewComment(reportId, comment.text || '', comment.isInternal || false)
+      const response = await qsApi.addReviewComment(
+        reportId, 
+        comment.text || comment.content || '', 
+        comment.isInternal || false
+      )
       return response
     } catch (error) {
       console.error('Error adding comment:', error)
@@ -177,14 +174,14 @@ export const reportsApi = {
     }
   },
 
-  // Get report comments - uses QS API
-  getComments: async (reportId: string) => {
+  // Get report comments - UPDATED to use qsApi
+  getComments: async (reportId: string): Promise<{ data: Comment[] }> => {
     try {
       const response = await qsApi.getReportComments(reportId)
       return response
     } catch (error) {
       console.error('Error fetching comments:', error)
-      throw error
+      return { data: [] }
     }
   },
 
@@ -211,7 +208,7 @@ export const reportsApi = {
       return await qsApi.getReportAuditTrail(reportId)
     } catch (error) {
       console.error('Error fetching history:', error)
-      throw error
+      return { data: [] }
     }
   },
 
@@ -248,7 +245,6 @@ export const reportsApi = {
   getMyReports: async (page = 1, pageSize = 10, filters = {}) => {
     try {
       const response = await axiosInstance.get('/rmChecklist')
-      // Filtering should be done on the backend, but for now return all
       return {
         data: {
           items: response.data || [],
@@ -264,13 +260,13 @@ export const reportsApi = {
     }
   },
 
-  // Get reports pending review (for QS) - uses QS API
+  // Get reports pending review (for QS)
   getPendingReviews: async (page = 1, pageSize = 10) => {
     try {
       return await qsApi.getPendingReviews(page, pageSize)
     } catch (error) {
       console.error('Error fetching pending reviews:', error)
-      throw error
+      return { data: { items: [], total: 0, page, pageSize, totalPages: 0 } }
     }
   },
 

@@ -18,7 +18,9 @@ import {
   FiClock,
   FiHash,
   FiCreditCard,
-  FiBriefcase
+  FiBriefcase,
+  FiChevronLeft,
+  FiChevronRight as FiChevronRightIcon
 } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 import { formatNairobiDate } from '@/utils/dateUtils'
@@ -54,6 +56,39 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   )
 }
 
+// Pagination component - REDUCED SIZE
+const Pagination: React.FC<{
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+}> = ({ currentPage, totalPages, onPageChange }) => {
+  if (totalPages <= 1) return null;
+  
+  return (
+    <div className="flex items-center justify-between mt-2 px-1">
+      <button
+        onClick={() => onPageChange(currentPage - 1)}
+        disabled={currentPage === 1}
+        className="flex items-center gap-1 px-1.5 py-0.5 text-[9px] text-[#1A3636] bg-white border border-[#D6BD98]/20 rounded disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#F5F7F4] transition-colors"
+      >
+        <FiChevronLeft className="w-2.5 h-2.5" />
+        Prev
+      </button>
+      <span className="text-[9px] text-[#677D6A]">
+        {currentPage} / {totalPages}
+      </span>
+      <button
+        onClick={() => onPageChange(currentPage + 1)}
+        disabled={currentPage === totalPages}
+        className="flex items-center gap-1 px-1.5 py-0.5 text-[9px] text-[#1A3636] bg-white border border-[#D6BD98]/20 rounded disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#F5F7F4] transition-colors"
+      >
+        Next
+        <FiChevronRight className="w-2.5 h-2.5" />
+      </button>
+    </div>
+  );
+};
+
 export const QSReviewsPage: React.FC = () => {
   const navigate = useNavigate()
   const location = useLocation()
@@ -71,13 +106,19 @@ export const QSReviewsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
-  const [page, setPage] = useState(1)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage] = useState(15)
   const [totalPages, setTotalPages] = useState(1)
   const [stats, setStats] = useState({
     pending: 0,
     progress: 0,
     completed: 0
   })
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [activeTab, searchTerm])
 
   // Save current path before navigating to detail
   useEffect(() => {
@@ -87,23 +128,23 @@ export const QSReviewsPage: React.FC = () => {
   useEffect(() => {
     loadReviews()
     loadStats()
-  }, [activeTab, page])
+  }, [activeTab, currentPage])
 
   const loadReviews = async () => {
     setIsLoading(true)
     try {
       let response
-      console.log(`Loading ${activeTab} reviews, page ${page}`)
+      console.log(`Loading ${activeTab} reviews, page ${currentPage}`)
       
       switch (activeTab) {
         case 'pending':
-          response = await qsApi.getPendingReviews(page, 10)
+          response = await qsApi.getPendingReviews(currentPage, itemsPerPage)
           break
         case 'progress':
-          response = await qsApi.getInProgressReviews(page, 10)
+          response = await qsApi.getInProgressReviews(currentPage, itemsPerPage)
           break
         case 'completed':
-          response = await qsApi.getCompletedReviews(page, 10)
+          response = await qsApi.getCompletedReviews(currentPage, itemsPerPage)
           break
       }
 
@@ -113,10 +154,10 @@ export const QSReviewsPage: React.FC = () => {
       if (response.data) {
         if (Array.isArray(response.data)) {
           items = response.data
-          total = Math.ceil(items.length / 10) || 1
+          total = Math.ceil(items.length / itemsPerPage) || 1
         } else if (response.data.items) {
           items = response.data.items
-          total = response.data.totalPages || Math.ceil(response.data.total / 10) || 1
+          total = response.data.totalPages || Math.ceil(response.data.total / itemsPerPage) || 1
         } else if (response.data.data) {
           items = response.data.data
           total = response.data.totalPages || 1
@@ -163,8 +204,11 @@ export const QSReviewsPage: React.FC = () => {
           break
       }
 
-      setReports(filtered)
-      setTotalPages(Math.ceil(filtered.length / 10))
+      // Manual pagination for fallback
+      const start = (currentPage - 1) * itemsPerPage
+      const paginated = filtered.slice(start, start + itemsPerPage)
+      setReports(paginated)
+      setTotalPages(Math.ceil(filtered.length / itemsPerPage))
     } catch (fallbackError) {
       console.error('Fallback also failed:', fallbackError)
     }
@@ -231,6 +275,7 @@ export const QSReviewsPage: React.FC = () => {
     navigate(`/qs/reviews/${reportId}`)
   }
 
+  // Filter reports based on search
   const filteredReports = reports.filter(report =>
     searchTerm === '' ||
     (report.reportNo?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
@@ -290,7 +335,7 @@ export const QSReviewsPage: React.FC = () => {
               <button
                 onClick={() => {
                   setActiveTab('pending')
-                  setPage(1)
+                  setCurrentPage(1)
                   navigate('/qs/reviews/pending')
                 }}
                 className={`pb-1.5 text-[10px] lg:text-xs font-medium whitespace-nowrap ${activeTab === 'pending'
@@ -303,7 +348,7 @@ export const QSReviewsPage: React.FC = () => {
               <button
                 onClick={() => {
                   setActiveTab('progress')
-                  setPage(1)
+                  setCurrentPage(1)
                   navigate('/qs/reviews/progress')
                 }}
                 className={`pb-1.5 text-[10px] lg:text-xs font-medium whitespace-nowrap ${activeTab === 'progress'
@@ -316,7 +361,7 @@ export const QSReviewsPage: React.FC = () => {
               <button
                 onClick={() => {
                   setActiveTab('completed')
-                  setPage(1)
+                  setCurrentPage(1)
                   navigate('/qs/reviews/completed')
                 }}
                 className={`pb-1.5 text-[10px] lg:text-xs font-medium whitespace-nowrap ${activeTab === 'completed'
@@ -365,7 +410,7 @@ export const QSReviewsPage: React.FC = () => {
               <div className="col-span-1 text-right">RM</div>
             </div>
 
-            <div className="overflow-y-auto max-h-[calc(100vh-280px)] bg-white">
+            <div className="overflow-y-auto max-h-[calc(100vh-350px)] bg-white">
               {filteredReports.length === 0 ? (
                 <div className="p-6 text-center">
                   <FiClock className="w-6 h-6 text-[#D6BD98] mx-auto mb-1" />
@@ -449,94 +494,80 @@ export const QSReviewsPage: React.FC = () => {
               <div className="col-span-1">Action</div>
             </div>
 
-            <div className="divide-y divide-[#D6BD98]/10">
-              {filteredReports.length === 0 ? (
-                <div className="px-4 py-6 text-center text-[#677D6A] text-xs">
-                  No {getTabLabel(activeTab).toLowerCase()} reviews found
-                </div>
-              ) : (
-                filteredReports.map((report) => (
-                  <div
-                    key={report.id}
-                    onClick={() => handleView(report.id)}
-                    className="grid grid-cols-12 gap-1 px-3 py-2 hover:bg-[#D6BD98]/5 transition-colors cursor-pointer text-xs"
-                  >
-                    <div className="col-span-1 text-[#1A3636] truncate text-[11px]">
-                      {report.reportNo || `CRN-${report.id?.slice(0, 6)}`}
-                    </div>
-
-                    <div className="col-span-2 text-[#40534C] truncate text-[11px]">
-                      {report.customerName || report.clientName || '—'}
-                    </div>
-
-                    <div className="col-span-1 text-[#677D6A] truncate text-[10px]">
-                      {report.customerNumber || '—'}
-                    </div>
-
-                    <div className="col-span-1 text-[#677D6A] truncate text-[10px]">
-                      {report.ibpsNo || '—'}
-                    </div>
-
-                    <div className="col-span-2 text-[#40534C] truncate text-[10px]">
-                      {report.projectName || report.title || '—'}
-                    </div>
-
-                    <div className="col-span-2 text-[#677D6A] truncate text-[10px] flex items-center gap-0.5">
-                      <span className="truncate">{report.rmName || '—'}</span>
-                    </div>
-
-                    <div className="col-span-1 text-[#677D6A] text-[9px] flex items-center gap-1">
-                      {formatNairobiDate(report.submittedAt || report.createdAt)}
-                    </div>
-
-                    <div className="col-span-1">
-                      <StatusBadge status={report.status || 'pending'} />
-                    </div>
-
-                    <div className="col-span-1 flex items-center">
-                      {activeTab === 'pending' ? (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleAssignToMe(report.id, e)
-                          }}
-                          className="px-1.5 py-0.5 text-[8px] font-bold text-[#1A3636] bg-[#D6BD98]/10 rounded hover:bg-[#D6BD98]/20 transition-colors"
-                        >
-                          Assign
-                        </button>
-                      ) : (
-                        <FiChevronRight className="w-3 h-3 text-[#677D6A]" />
-                      )}
-                    </div>
+            <div className="overflow-y-auto max-h-[calc(100vh-350px)]">
+              <div className="divide-y divide-[#D6BD98]/10">
+                {filteredReports.length === 0 ? (
+                  <div className="px-4 py-6 text-center text-[#677D6A] text-xs">
+                    No {getTabLabel(activeTab).toLowerCase()} reviews found
                   </div>
-                ))
-              )}
+                ) : (
+                  filteredReports.map((report) => (
+                    <div
+                      key={report.id}
+                      onClick={() => handleView(report.id)}
+                      className="grid grid-cols-12 gap-1 px-3 py-2 hover:bg-[#D6BD98]/5 transition-colors cursor-pointer text-xs"
+                    >
+                      <div className="col-span-1 text-[#1A3636] truncate text-[11px]">
+                        {report.reportNo || `CRN-${report.id?.slice(0, 6)}`}
+                      </div>
+
+                      <div className="col-span-2 text-[#40534C] truncate text-[11px]">
+                        {report.customerName || report.clientName || '—'}
+                      </div>
+
+                      <div className="col-span-1 text-[#677D6A] truncate text-[10px]">
+                        {report.customerNumber || '—'}
+                      </div>
+
+                      <div className="col-span-1 text-[#677D6A] truncate text-[10px]">
+                        {report.ibpsNo || '—'}
+                      </div>
+
+                      <div className="col-span-2 text-[#40534C] truncate text-[10px]">
+                        {report.projectName || report.title || '—'}
+                      </div>
+
+                      <div className="col-span-2 text-[#677D6A] truncate text-[10px]">
+                        {report.rmName || '—'}
+                      </div>
+
+                      <div className="col-span-1 text-[#677D6A] text-[9px]">
+                        {formatNairobiDate(report.submittedAt || report.createdAt)}
+                      </div>
+
+                      <div className="col-span-1">
+                        <StatusBadge status={report.status || 'pending'} />
+                      </div>
+
+                      <div className="col-span-1 flex items-center">
+                        {activeTab === 'pending' ? (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleAssignToMe(report.id, e)
+                            }}
+                            className="px-1.5 py-0.5 text-[8px] font-bold text-[#1A3636] bg-[#D6BD98]/10 rounded hover:bg-[#D6BD98]/20 transition-colors"
+                          >
+                            Assign
+                          </button>
+                        ) : (
+                          <FiChevronRight className="w-3 h-3 text-[#677D6A]" />
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         )}
 
-        {/* Pagination - REDUCED SIZE */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-3">
-            <button
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={page === 1}
-              className="px-2 py-1 text-[10px] text-[#1A3636] bg-white border border-[#D6BD98]/20 rounded disabled:opacity-50"
-            >
-              Previous
-            </button>
-            <span className="text-[10px] text-[#677D6A]">
-              Page {page} of {totalPages}
-            </span>
-            <button
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-              className="px-2 py-1 text-[10px] text-[#1A3636] bg-white border border-[#D6BD98]/20 rounded disabled:opacity-50"
-            >
-              Next
-            </button>
-          </div>
-        )}
+        {/* Pagination */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </div>
   )

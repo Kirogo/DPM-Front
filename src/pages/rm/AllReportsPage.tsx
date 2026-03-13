@@ -18,7 +18,9 @@ import {
   FiX,
   FiBriefcase,
   FiCreditCard,
-  FiCalendar
+  FiCalendar,
+  FiChevronLeft,
+  FiChevronRight
 } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 import { formatNairobiDate } from '@/utils/dateUtils'
@@ -59,6 +61,37 @@ const formatMobileDate = (dateString?: Date | string) => {
   }
 }
 
+// Pagination component - INLINE WITH TABLE FOOTER
+const Pagination: React.FC<{
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+}> = ({ currentPage, totalPages, onPageChange }) => {
+  if (totalPages <= 1) return null;
+
+  return (
+    <div className="flex items-center justify-end gap-0.5 py-1 text-[11px]">
+      <button
+        onClick={() => onPageChange(currentPage - 1)}
+        disabled={currentPage === 1}
+        className="w-4 h-4 flex items-center justify-center text-[#1A3636] bg-white border border-[#D6BD98]/20 rounded hover:bg-[#F5F7F4] disabled:opacity-30 disabled:cursor-not-allowed"
+      >
+        ‹
+      </button>
+      <span className="px-1 text-[#677D6A]">
+        {currentPage}/{totalPages}
+      </span>
+      <button
+        onClick={() => onPageChange(currentPage + 1)}
+        disabled={currentPage === totalPages}
+        className="w-4 h-4 flex items-center justify-center text-[#1A3636] bg-white border border-[#D6BD98]/20 rounded hover:bg-[#F5F7F4] disabled:opacity-30 disabled:cursor-not-allowed"
+      >
+        ›
+      </button>
+    </div>
+  );
+};
+
 export const AllReportsPage: React.FC = () => {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -68,6 +101,8 @@ export const AllReportsPage: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false)
   const [lockStatuses, setLockStatuses] = useState<Record<string, any>>({})
   const [isLoadingLocks, setIsLoadingLocks] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage] = useState(15)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
 
   const { data: checklists, isLoading, error, refetch } = useGetAllRmChecklistsQuery()
@@ -75,6 +110,11 @@ export const AllReportsPage: React.FC = () => {
   const allReports = React.useMemo(() => {
     return transformChecklistsToReports(checklists || [])
   }, [checklists])
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, statusFilter])
 
   // Check lock status for reports
   useEffect(() => {
@@ -127,6 +167,7 @@ export const AllReportsPage: React.FC = () => {
     }
   }
 
+  // Filter reports
   const filteredReports = allReports.filter(report => {
     if (statusFilter !== 'all') {
       const reportStatus = report.status?.toLowerCase() || ''
@@ -147,6 +188,13 @@ export const AllReportsPage: React.FC = () => {
 
     return matchesSearch
   })
+
+  // Pagination
+  const totalPages = Math.ceil(filteredReports.length / itemsPerPage)
+  const paginatedReports = filteredReports.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  )
 
   if (isLoading) {
     return (
@@ -250,16 +298,16 @@ export const AllReportsPage: React.FC = () => {
             {/* Scrollable List */}
             <div
               ref={scrollContainerRef}
-              className="overflow-y-auto max-h-[calc(100vh-280px)] bg-white"
+              className="overflow-y-auto max-h-[calc(100vh-350px)] bg-white"
               style={{ WebkitOverflowScrolling: 'touch' }}
             >
-              {filteredReports.length === 0 ? (
+              {paginatedReports.length === 0 ? (
                 <div className="p-6 text-center">
                   <FiEye className="w-6 h-6 text-[#D6BD98] mx-auto mb-1" />
                   <p className="text-[9px] text-[#40534C]">No reports found</p>
                 </div>
               ) : (
-                filteredReports.map((report) => {
+                paginatedReports.map((report) => {
                   const lockStatus = lockStatuses[report.id]
                   const isLockedByOther = lockStatus?.isLocked && lockStatus.lockedBy?.id !== user?.id
 
@@ -328,7 +376,7 @@ export const AllReportsPage: React.FC = () => {
         ) : (
           /* Desktop: Full table with OPTIMIZED COLUMN SPACING */
           <div className="border border-[#D6BD98]/20 rounded-lg overflow-hidden bg-white">
-            {/* Table Header - OPTIMIZED COLUMN SPACING */}
+            {/* Table Header */}
             <div className="grid grid-cols-12 gap-1 px-3 py-2 bg-[#F5F7F4] border-b border-[#D6BD98]/20 text-[9px] font-bold text-[#40534C] uppercase tracking-wider">
               <div className="col-span-1">Report</div>
               <div className="col-span-2">Customer</div>
@@ -340,14 +388,14 @@ export const AllReportsPage: React.FC = () => {
               <div className="col-span-1">Status</div>
             </div>
 
-            {/* Table Rows - OPTIMIZED COLUMN SPACING */}
+            {/* Scrollable Table Rows */}
             <div className="divide-y divide-[#D6BD98]/10">
-              {filteredReports.length === 0 ? (
+              {paginatedReports.length === 0 ? (
                 <div className="px-4 py-6 text-center text-[#677D6A] text-xs">
                   No reports found
                 </div>
               ) : (
-                filteredReports.map((report) => {
+                paginatedReports.map((report) => {
                   const lockStatus = lockStatuses[report.id]
                   const isLockedByOther = lockStatus?.isLocked && lockStatus.lockedBy?.id !== user?.id
 
@@ -401,8 +449,17 @@ export const AllReportsPage: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Pagination - DIRECTLY AFTER TABLE, NO EXTRA CONTAINER */}
+        {totalPages > 1 && (
+          <Pagination 
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+          />
+        )}
       </div>
-    </div>
+    </div >
   )
 }
 

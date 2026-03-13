@@ -29,10 +29,28 @@ interface LockStatusResponse {
 
 export const checklistsApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
-    // Get all reports (this already returns ALL reports regardless of RM)
+    // Get all reports (for RMs - returns their reports)
     getAllRmChecklists: builder.query<Checklist[], void>({
       query: () => 'rmChecklist',
       providesTags: ['Checklist'],
+    }),
+    
+    // Get all reports for QS view (returns ALL reports in system)
+    getAllQSChecklists: builder.query<Checklist[], void>({
+      query: () => 'qs/checklists', // You'll need to create this endpoint on the backend
+      providesTags: ['Checklist'],
+    }),
+    
+    // Get pending reviews for QS
+    getQSPendingReviews: builder.query<Checklist[], void>({
+      query: () => 'qs/reviews/pending',
+      providesTags: ['Checklist'],
+    }),
+    
+    // Get reports by RM for QS
+    getQSChecklistsByRM: builder.query<Checklist[], string>({
+      query: (rmId) => `qs/checklists/rm/${rmId}`,
+      providesTags: (result, error, rmId) => [{ type: 'Checklist', id: `rm-${rmId}` }],
     }),
     
     getChecklistById: builder.query<Checklist, string>({
@@ -76,7 +94,7 @@ export const checklistsApi = baseApi.injectEndpoints({
       invalidatesTags: (result, error, { id }) => [{ type: 'Checklist', id }],
     }),
     
-    // DELETE a report - ADD THIS MUTATION
+    // DELETE a report
     deleteRmChecklist: builder.mutation<{ message: string }, string>({
       query: (id) => ({
         url: `rmChecklist/${id}`,
@@ -151,10 +169,13 @@ export const checklistsApi = baseApi.injectEndpoints({
 
 export const {
   useGetAllRmChecklistsQuery,
+  useGetAllQSChecklistsQuery,
+  useGetQSPendingReviewsQuery,
+  useGetQSChecklistsByRMQuery,
   useGetChecklistByIdQuery,
   useCreateRmChecklistMutation,
   useUpdateRmChecklistMutation,
-  useDeleteRmChecklistMutation, // EXPORT THIS
+  useDeleteRmChecklistMutation,
   useLockReportMutation,
   useUnlockReportMutation,
   useGetLockStatusQuery,

@@ -15,7 +15,9 @@ import {
   FiEye,
   FiBriefcase,
   FiCreditCard,
-  FiCalendar
+  FiCalendar,
+  FiChevronLeft,
+  FiChevronRight
 } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 import { formatNairobiDate } from '@/utils/dateUtils'
@@ -43,15 +45,55 @@ const formatMobileDate = (dateString?: Date | string) => {
   }
 }
 
+// Pagination component
+const Pagination: React.FC<{
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+}> = ({ currentPage, totalPages, onPageChange }) => {
+  if (totalPages <= 1) return null;
+  
+  return (
+    <div className="flex items-center justify-between mt-3 px-1">
+      <button
+        onClick={() => onPageChange(currentPage - 1)}
+        disabled={currentPage === 1}
+        className="flex items-center gap-1 px-2 py-1 text-[10px] text-[#1A3636] bg-white border border-[#D6BD98]/20 rounded disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#F5F7F4] transition-colors"
+      >
+        <FiChevronLeft className="w-3 h-3" />
+        Previous
+      </button>
+      <span className="text-[10px] text-[#677D6A]">
+        Page {currentPage} of {totalPages}
+      </span>
+      <button
+        onClick={() => onPageChange(currentPage + 1)}
+        disabled={currentPage === totalPages}
+        className="flex items-center gap-1 px-2 py-1 text-[10px] text-[#1A3636] bg-white border border-[#D6BD98]/20 rounded disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#F5F7F4] transition-colors"
+      >
+        Next
+        <FiChevronRight className="w-3 h-3" />
+      </button>
+    </div>
+  );
+};
+
 export const ApprovedPage: React.FC = () => {
   const navigate = useNavigate()
   const { user } = useAuth()
   const isMobile = useMediaQuery('(max-width: 768px)')
   const [searchTerm, setSearchTerm] = useState('')
   const [lockStatuses, setLockStatuses] = useState<Record<string, any>>({})
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage] = useState(15)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   
   const { data: checklists, isLoading, error, refetch } = useGetAllRmChecklistsQuery()
+
+  // Reset to first page when search changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm])
 
   // Transform and filter to only show current RM's approved reports
   const approvedReports = React.useMemo(() => {
@@ -121,6 +163,13 @@ export const ApprovedPage: React.FC = () => {
       report.ibpsNo?.toLowerCase().includes(searchTerm.toLowerCase())
     return matchesSearch
   })
+
+  // Pagination
+  const totalPages = Math.ceil(filteredReports.length / itemsPerPage)
+  const paginatedReports = filteredReports.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  )
 
   if (isLoading) {
     return (
@@ -198,16 +247,16 @@ export const ApprovedPage: React.FC = () => {
             
             <div 
               ref={scrollContainerRef}
-              className="overflow-y-auto max-h-[calc(100vh-280px)] bg-white"
+              className="overflow-y-auto max-h-[calc(100vh-350px)] bg-white"
               style={{ WebkitOverflowScrolling: 'touch' }}
             >
-              {filteredReports.length === 0 ? (
+              {paginatedReports.length === 0 ? (
                 <div className="p-6 text-center">
                   <FiEye className="w-6 h-6 text-[#D6BD98] mx-auto mb-1" />
                   <p className="text-[9px] text-[#40534C]">No approved reports found</p>
                 </div>
               ) : (
-                filteredReports.map((report) => {
+                paginatedReports.map((report) => {
                   const lockStatus = lockStatuses[report.id]
                   const isLockedByOther = lockStatus?.isLocked && lockStatus.lockedBy?.id !== user?.id
                   
@@ -283,68 +332,77 @@ export const ApprovedPage: React.FC = () => {
               <div className="col-span-1">Status</div>
             </div>
 
-            <div className="divide-y divide-[#D6BD98]/10">
-              {filteredReports.length === 0 ? (
-                <div className="px-4 py-6 text-center text-[#677D6A] text-xs">
-                  No approved reports found
-                </div>
-              ) : (
-                filteredReports.map((report) => {
-                  const lockStatus = lockStatuses[report.id]
-                  const isLockedByOther = lockStatus?.isLocked && lockStatus.lockedBy?.id !== user?.id
-                  
-                  return (
-                    <div
-                      key={report.id}
-                      onClick={() => !isLockedByOther && handleView(report.id)}
-                      className={`grid grid-cols-12 gap-1 px-3 py-2 hover:bg-[#D6BD98]/5 transition-colors cursor-pointer text-xs relative ${
-                        isLockedByOther ? 'opacity-50 cursor-not-allowed' : ''
-                      }`}
-                      title={isLockedByOther ? `Locked by ${lockStatus.lockedBy?.name}` : ''}
-                    >
-                      <div className="col-span-1 text-[#1A3636] truncate text-[11px] italic flex items-center gap-1">
-                        {lockStatus?.isLocked && (
-                          <FiLock className={`w-2.5 h-2.5 flex-shrink-0 ${
-                            isLockedByOther ? 'text-amber-500' : 'text-green-500'
-                          }`} />
-                        )}
-                        <span className="truncate">{report.reportNo || '—'}</span>
-                      </div>
+            <div className="overflow-y-auto max-h-[calc(100vh-350px)]">
+              <div className="divide-y divide-[#D6BD98]/10">
+                {paginatedReports.length === 0 ? (
+                  <div className="px-4 py-6 text-center text-[#677D6A] text-xs">
+                    No approved reports found
+                  </div>
+                ) : (
+                  paginatedReports.map((report) => {
+                    const lockStatus = lockStatuses[report.id]
+                    const isLockedByOther = lockStatus?.isLocked && lockStatus.lockedBy?.id !== user?.id
+                    
+                    return (
+                      <div
+                        key={report.id}
+                        onClick={() => !isLockedByOther && handleView(report.id)}
+                        className={`grid grid-cols-12 gap-1 px-3 py-2 hover:bg-[#D6BD98]/5 transition-colors cursor-pointer text-xs relative ${
+                          isLockedByOther ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                        title={isLockedByOther ? `Locked by ${lockStatus.lockedBy?.name}` : ''}
+                      >
+                        <div className="col-span-1 text-[#1A3636] truncate text-[11px] italic flex items-center gap-1">
+                          {lockStatus?.isLocked && (
+                            <FiLock className={`w-2.5 h-2.5 flex-shrink-0 ${
+                              isLockedByOther ? 'text-amber-500' : 'text-green-500'
+                            }`} />
+                          )}
+                          <span className="truncate">{report.reportNo || '—'}</span>
+                        </div>
 
-                      <div className="col-span-2 text-[#40534C] truncate text-[11px]">
-                        {report.customerName || report.clientName || '—'}
-                      </div>
+                        <div className="col-span-2 text-[#40534C] truncate text-[11px]">
+                          {report.customerName || report.clientName || '—'}
+                        </div>
 
-                      <div className="col-span-1 text-[#677D6A] truncate text-[10px]">
-                        {report.customerNumber || '—'}
-                      </div>
+                        <div className="col-span-1 text-[#677D6A] truncate text-[10px]">
+                          {report.customerNumber || '—'}
+                        </div>
 
-                      <div className="col-span-1 text-[#677D6A] truncate text-[10px]">
-                        {report.ibpsNo || '—'}
-                      </div>
+                        <div className="col-span-1 text-[#677D6A] truncate text-[10px]">
+                          {report.ibpsNo || '—'}
+                        </div>
 
-                      <div className="col-span-3 text-[#40534C] truncate text-[10px] font-medium">
-                        {report.projectName || report.title || '—'}
-                      </div>
+                        <div className="col-span-3 text-[#40534C] truncate text-[10px] font-medium">
+                          {report.projectName || report.title || '—'}
+                        </div>
 
-                      <div className="col-span-2 text-[#677D6A] truncate text-[10px]">
-                        {report.rmName || report.assignedToRM?.name?.split(' ')[0] || '—'}
-                      </div>
+                        <div className="col-span-2 text-[#677D6A] truncate text-[10px]">
+                          {report.rmName || report.assignedToRM?.name?.split(' ')[0] || '—'}
+                        </div>
 
-                      <div className="col-span-1 text-[#677D6A] text-[9px]">
-                        {formatNairobiDate(report.updatedAt || report.createdAt)}
-                      </div>
+                        <div className="col-span-1 text-[#677D6A] text-[9px]">
+                          {formatNairobiDate(report.updatedAt || report.createdAt)}
+                        </div>
 
-                      <div className="col-span-1">
-                        <StatusBadge status="approved" />
+                        <div className="col-span-1">
+                          <StatusBadge status="approved" />
+                        </div>
                       </div>
-                    </div>
-                  )
-                })
-              )}
+                    )
+                  })
+                )}
+              </div>
             </div>
           </div>
         )}
+
+        {/* Pagination */}
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </div>
   )
