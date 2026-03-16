@@ -58,7 +58,7 @@ const getBase64ImageFromUrl = async (imageUrl: string): Promise<string> => {
   }
 }
 
-// Initial empty form state
+// Initial empty form state - UPDATED with drawdowns array
 const initialFormState: SiteVisitCallReportForm = {
   callReportNo: '',
   customerName: '',
@@ -68,8 +68,8 @@ const initialFormState: SiteVisitCallReportForm = {
   bqAmount: '',
   constructionLoanAmount: '',
   customerContribution: '',
-  drawnFundsD1: '',
-  drawnFundsD2: '',
+  // UPDATED: Replace drawnFundsD1/D2 with drawdowns array
+  drawdowns: [{ id: crypto.randomUUID?.() || Date.now().toString(), amount: '' }],
   drawnFundsSubtotal: '',
   undrawnFundsToDate: '',
   briefProfile: '',

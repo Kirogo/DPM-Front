@@ -28,6 +28,12 @@ export interface ChecklistClientInfo {
   ibpsNo?: string
 }
 
+// NEW: Drawdown Item Interface
+export interface DrawdownItem {
+  id: string
+  amount: string
+}
+
 // Site Visit Form Types
 export interface SiteVisitSubmittedDocs {
   qsValuation: string
@@ -60,8 +66,8 @@ export interface SiteVisitCallReportForm {
   bqAmount: string
   constructionLoanAmount: string
   customerContribution: string
-  drawnFundsD1: string
-  drawnFundsD2: string
+  // UPDATED: Replace single drawdown fields with array
+  drawdowns: DrawdownItem[]
   drawnFundsSubtotal: string
   undrawnFundsToDate: string
   briefProfile: string
@@ -171,7 +177,7 @@ export interface UnlockReportDto {
   userId: string
 }
 
-// Helper function to create default form
+// Helper function to create default form - UPDATED with drawdowns array
 export const createDefaultSiteVisitCallReportForm = (): SiteVisitCallReportForm => ({
   callReportNo: '',
   customerName: '',
@@ -181,8 +187,8 @@ export const createDefaultSiteVisitCallReportForm = (): SiteVisitCallReportForm 
   bqAmount: '',
   constructionLoanAmount: '',
   customerContribution: '',
-  drawnFundsD1: '',
-  drawnFundsD2: '',
+  // UPDATED: Initialize with one default drawdown
+  drawdowns: [{ id: crypto.randomUUID?.() || Date.now().toString(), amount: '' }],
   drawnFundsSubtotal: '',
   undrawnFundsToDate: '',
   briefProfile: '',

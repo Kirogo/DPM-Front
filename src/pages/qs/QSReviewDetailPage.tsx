@@ -27,7 +27,8 @@ import {
   FiMessageCircle,
   FiInfo,
   FiSend,
-  FiClock
+  FiClock,
+  FiList
 } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 import { formatDistanceToNow } from 'date-fns'
@@ -57,7 +58,6 @@ const tabs = [
   { id: 'project-info', label: 'Project Info', icon: FiBriefcase, rmStep: 3 },
   { id: 'documents', label: 'Documents', icon: FiFileText, rmStep: 4 },
   { id: 'photos', label: 'Photos', icon: FiCamera, rmStep: 5 },
-  { id: 'audit', label: 'Audit', icon: FiClipboard, rmStep: 6 },
 ]
 
 // Helper function to transform comment data
@@ -359,7 +359,7 @@ export const QSReviewDetailPage: React.FC = () => {
             <p className="text-[9px] text-[#677D6A]">Site PIN</p>
             <p className="text-xs text-[#40534C] mt-0.5">{form?.sitePin || '—'}</p>
           </div>
-          <div>
+          <div className="col-span-2">
             <p className="text-[9px] text-[#677D6A]">Security Details</p>
             <p className="text-xs text-[#40534C] mt-0.5">{form?.securityDetails || '—'}</p>
           </div>
@@ -389,25 +389,34 @@ export const QSReviewDetailPage: React.FC = () => {
 
       <div className="border-t border-[#D6BD98]/10"></div>
 
-      {/* Drawdown Funds */}
+      {/* UPDATED: Drawdown Funds with multiple drawdowns */}
       <div>
-        <h3 className="text-[10px] font-bold text-[#1A3636] uppercase tracking-wider mb-2">Drawdown Funds</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <p className="text-[9px] text-[#677D6A]">Drawn Funds D1</p>
-            <p className="text-xs text-[#40534C] mt-0.5">{formatCurrency(form?.drawnFundsD1)}</p>
-          </div>
-          <div>
-            <p className="text-[9px] text-[#677D6A]">Drawn Funds D2</p>
-            <p className="text-xs text-[#40534C] mt-0.5">{formatCurrency(form?.drawnFundsD2)}</p>
-          </div>
-          <div>
-            <p className="text-[9px] text-[#677D6A]">Subtotal Drawn</p>
-            <p className="text-xs font-medium text-[#1A3636] mt-0.5">{formatCurrency(form?.drawnFundsSubtotal)}</p>
-          </div>
-          <div>
-            <p className="text-[9px] text-[#677D6A]">Undrawn Funds</p>
-            <p className="text-xs font-medium text-[#1A3636] mt-0.5">{formatCurrency(form?.undrawnFundsToDate)}</p>
+        <h3 className="text-[10px] font-bold text-[#1A3636] uppercase tracking-wider mb-2 flex items-center gap-1">
+          <FiList className="w-3 h-3" />
+          Drawdown Funds
+        </h3>
+        <div className="space-y-2">
+          {form?.drawdowns && form.drawdowns.length > 0 ? (
+            form.drawdowns.map((drawdown: any, index: number) => (
+              <div key={drawdown.id || index} className="grid grid-cols-2 gap-3 bg-[#F5F7F4] p-2 rounded mb-2">
+                <div>
+                  <p className="text-[8px] text-[#677D6A]">Drawdown {index + 1}</p>
+                  <p className="text-xs font-medium text-[#1A3636] mt-0.5">{formatCurrency(drawdown.amount)}</p>
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="text-xs text-[#40534C]">No drawdowns recorded</p>
+          )}
+          <div className="grid grid-cols-2 gap-3 mt-2 pt-2 border-t border-[#D6BD98]/10">
+            <div>
+              <p className="text-[9px] font-semibold text-[#1A3636]">Subtotal Drawn</p>
+              <p className="text-sm font-bold text-[#1A3636] mt-0.5">{formatCurrency(form?.drawnFundsSubtotal)}</p>
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold text-[#1A3636]">Undrawn Funds</p>
+              <p className="text-sm font-bold text-[#1A3636] mt-0.5">{formatCurrency(form?.undrawnFundsToDate)}</p>
+            </div>
           </div>
         </div>
       </div>
@@ -613,28 +622,6 @@ export const QSReviewDetailPage: React.FC = () => {
     )
   }
 
-  const renderAuditTab = () => (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2 py-1.5">
-        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
-        <div>
-          <p className="text-[9px] text-[#677D6A]">Report submitted for review</p>
-          <p className="text-[10px] text-[#40534C]">
-            {state.report?.submittedAt ? formatNairobiDateTime(state.report.submittedAt) : '—'}
-          </p>
-        </div>
-      </div>
-      <div className="flex items-center gap-2 py-1.5">
-        <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
-        <div>
-          <p className="text-[9px] text-[#677D6A]">Report created</p>
-          <p className="text-[10px] text-[#40534C]">
-            {state.report?.createdAt ? formatNairobiDateTime(state.report.createdAt) : '—'}
-          </p>
-        </div>
-      </div>
-    </div>
-  )
   // ==================== END RENDER FUNCTIONS ====================
 
   if (state.isLoading && authLoading) {
@@ -687,7 +674,7 @@ export const QSReviewDetailPage: React.FC = () => {
                   </h1>
                 </div>
                 <p className="text-[9px] text-[#677D6A]">
-                  {report.customerName} •
+                  {report.customerName}
                 </p>
               </div>
             </div>
@@ -753,7 +740,6 @@ export const QSReviewDetailPage: React.FC = () => {
           {state.activeTab === 'project-info' && renderProjectInfoTab(form)}
           {state.activeTab === 'documents' && renderDocumentsTab(report, form)}
           {state.activeTab === 'photos' && renderPhotosTab(form)}
-          {state.activeTab === 'audit' && renderAuditTab()}
         </div>
 
         {/* Right Column - Comments Sidebar (30%) */}

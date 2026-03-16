@@ -4,15 +4,60 @@ import toast from 'react-hot-toast'
 import {
   SiteVisitCallReportForm,
   SiteVisitSubmittedDocs,
+  DrawdownItem,
 } from '../../types/checklist.types'
 import { useUploadRmChecklistDocumentMutation, useUploadRmChecklistPhotoMutation } from '@/services/api/checklistsApi'
-import { Upload, X } from 'lucide-react'
+import { Upload, X, Plus, Trash2 } from 'lucide-react'
 
 type Props = {
   value: SiteVisitCallReportForm
   onChange: (value: SiteVisitCallReportForm) => void
   activeStep?: number
   isReadOnly?: boolean
+}
+
+// Helper function to migrate old data format to new format
+const migrateDrawdowns = (formData: SiteVisitCallReportForm): SiteVisitCallReportForm => {
+  // If drawdowns array doesn't exist or is empty, check if we have old data
+  if (!formData.drawdowns || formData.drawdowns.length === 0) {
+    // Check if we have old drawdown data
+    const hasOldD1 = (formData as any).drawnFundsD1 && (formData as any).drawnFundsD1 !== ''
+    const hasOldD2 = (formData as any).drawnFundsD2 && (formData as any).drawnFundsD2 !== ''
+    
+    if (hasOldD1 || hasOldD2) {
+      // Migrate old data to new format
+      const drawdowns: DrawdownItem[] = []
+      
+      if (hasOldD1) {
+        drawdowns.push({
+          id: crypto.randomUUID?.() || `d1-${Date.now()}`,
+          amount: (formData as any).drawnFundsD1 || ''
+        })
+      }
+      
+      if (hasOldD2) {
+        drawdowns.push({
+          id: crypto.randomUUID?.() || `d2-${Date.now()}`,
+          amount: (formData as any).drawnFundsD2 || ''
+        })
+      }
+      
+      // Remove old fields and add new array
+      const { drawnFundsD1, drawnFundsD2, ...rest } = formData as any
+      return {
+        ...rest,
+        drawdowns
+      }
+    }
+    
+    // If no data at all, initialize with one empty drawdown
+    return {
+      ...formData,
+      drawdowns: [{ id: crypto.randomUUID?.() || Date.now().toString(), amount: '' }]
+    }
+  }
+  
+  return formData
 }
 
 // Helper function to format filename
@@ -60,12 +105,11 @@ const getFileIcon = (fileName: string) => {
 
 // Minimal input classes - with BOLDER headers
 const sectionClass = 'space-y-3'
-// CHANGED: Made headers bolder with font-semibold and darker color
 const labelClass = 'block text-[9px] font-bold text-[#1A3636] uppercase tracking-wider mb-1'
 const inputClass = 'w-full px-2 py-1.5 text-xs border border-[#D6BD98]/20 rounded focus:outline-none focus:border-[#1A3636] bg-white placeholder:text-[#677D6A]/50'
 const textareaClass = `${inputClass} min-h-[60px] resize-none`
 
-// DocumentItem component
+// DocumentItem component (unchanged)
 const DocumentItem: React.FC<{
   label: string
   documentKey: keyof Pick<SiteVisitSubmittedDocs, 
@@ -114,7 +158,6 @@ const DocumentItem: React.FC<{
 
   return (
     <div className="py-2 border-b border-[#D6BD98]/10 last:border-0">
-      {/* CHANGED: Made document label bolder */}
       <div className="text-[10px] font-bold text-[#1A3636] mb-1.5">{label}</div>
       
       <div className="flex flex-col md:flex-row gap-2">
@@ -212,7 +255,7 @@ const DocumentItem: React.FC<{
   )
 }
 
-// PhotoGrid component
+// PhotoGrid component (unchanged)
 const PhotoGrid: React.FC<{
   title: string
   sectionKey: string
@@ -245,7 +288,6 @@ const PhotoGrid: React.FC<{
 
   return (
     <div className="py-3 border-b border-[#D6BD98]/10 last:border-0">
-      {/* CHANGED: Made photo section title bolder */}
       <h4 className="text-[10px] font-bold text-[#1A3636] mb-2">{title}</h4>
       <div className="grid grid-cols-2 gap-2">
         {values.map((photoUrl, index) => (
@@ -320,7 +362,7 @@ const PhotoGrid: React.FC<{
   )
 }
 
-// Step 1: Customer Info - BOLDER headers
+// Step 1: Customer Info
 const CustomerInfoSection: React.FC<{
   value: SiteVisitCallReportForm;
   onChange: (field: keyof SiteVisitCallReportForm, value: any) => void;
@@ -329,7 +371,6 @@ const CustomerInfoSection: React.FC<{
   return (
     <div className={sectionClass}>
       <div className="py-3 border-b border-[#D6BD98]/10">
-        {/* CHANGED: Made header bolder */}
         <h4 className={labelClass}>Customer Information</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
@@ -384,34 +425,83 @@ const CustomerInfoSection: React.FC<{
   )
 }
 
-// Step 2: Site Visit - BOLDER headers
+// Step 2: Site Visit - UPDATED with safe drawdowns handling
 const SiteVisitSection: React.FC<{
   value: SiteVisitCallReportForm;
   onChange: (field: keyof SiteVisitCallReportForm, value: any) => void;
   isReadOnly?: boolean;
 }> = ({ value, onChange, isReadOnly = false }) => {
+  
+  // Ensure drawdowns array exists and has at least one item
+  const safeDrawdowns = React.useMemo(() => {
+    if (!value.drawdowns || value.drawdowns.length === 0) {
+      // Check if we need to migrate old data
+      const migrated = migrateDrawdowns(value)
+      if (migrated.drawdowns) {
+        // Update parent with migrated data
+        setTimeout(() => {
+          Object.keys(migrated).forEach(key => {
+            if (key !== 'drawdowns') {
+              onChange(key as any, migrated[key as keyof SiteVisitCallReportForm])
+            }
+          })
+          onChange('drawdowns', migrated.drawdowns)
+        }, 0)
+        return migrated.drawdowns
+      }
+      return [{ id: crypto.randomUUID?.() || Date.now().toString(), amount: '' }]
+    }
+    return value.drawdowns
+  }, [value])
+
+  // Calculate totals whenever drawdowns change
   useEffect(() => {
     if (!isReadOnly) {
-      const d1 = parseFloat(value.drawnFundsD1) || 0
-      const d2 = parseFloat(value.drawnFundsD2) || 0
-      const subtotal = d1 + d2
+      const subtotal = safeDrawdowns.reduce((sum, drawdown) => {
+        return sum + (parseFloat(drawdown.amount) || 0)
+      }, 0)
+      
+      const loanAmount = parseFloat(value.constructionLoanAmount) || 0
+      const undrawn = loanAmount - subtotal
+      
       if (value.drawnFundsSubtotal !== subtotal.toString()) {
         onChange('drawnFundsSubtotal', subtotal.toString())
       }
       
-      const loanAmount = parseFloat(value.constructionLoanAmount) || 0
-      const undrawn = loanAmount - subtotal
       if (value.undrawnFundsToDate !== undrawn.toString()) {
         onChange('undrawnFundsToDate', undrawn.toString())
       }
     }
-  }, [value.drawnFundsD1, value.drawnFundsD2, value.constructionLoanAmount, isReadOnly])
+  }, [safeDrawdowns, value.constructionLoanAmount, isReadOnly])
+
+  const handleDrawdownChange = (id: string, amount: string) => {
+    const updatedDrawdowns = safeDrawdowns.map(d => 
+      d.id === id ? { ...d, amount } : d
+    )
+    onChange('drawdowns', updatedDrawdowns)
+  }
+
+  const handleAddDrawdown = () => {
+    const newDrawdown: DrawdownItem = {
+      id: crypto.randomUUID?.() || Date.now().toString(),
+      amount: ''
+    }
+    onChange('drawdowns', [...safeDrawdowns, newDrawdown])
+  }
+
+  const handleRemoveDrawdown = (id: string) => {
+    if (safeDrawdowns.length <= 1) {
+      toast.error('At least one drawdown is required')
+      return
+    }
+    const updatedDrawdowns = safeDrawdowns.filter(d => d.id !== id)
+    onChange('drawdowns', updatedDrawdowns)
+  }
 
   return (
     <div className={sectionClass}>
       {/* Visit Details */}
       <div className="py-3 border-b border-[#D6BD98]/10">
-        {/* CHANGED: Made header bolder */}
         <h4 className={labelClass}>Visit Details</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
@@ -439,7 +529,6 @@ const SiteVisitSection: React.FC<{
 
       {/* Amounts Breakdown */}
       <div className="py-3 border-b border-[#D6BD98]/10">
-        {/* CHANGED: Made header bolder */}
         <h4 className={labelClass}>Amounts</h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
@@ -478,59 +567,85 @@ const SiteVisitSection: React.FC<{
         </div>
       </div>
 
-      {/* Drawdown Funds */}
+      {/* Drawdown Funds - UPDATED with safe handling */}
       <div className="py-3 border-b border-[#D6BD98]/10">
-        {/* CHANGED: Made header bolder */}
-        <h4 className={labelClass}>Drawdown Funds</h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <label className="text-[10px] text-[#677D6A] block mb-0.5">Drawn Funds D1</label>
-            <input
-              type="number"
-              className={inputClass}
-              value={value.drawnFundsD1}
-              onChange={(e) => onChange('drawnFundsD1', e.target.value)}
-              placeholder="0.00"
-              disabled={isReadOnly}
-            />
-          </div>
-          <div>
-            <label className="text-[10px] text-[#677D6A] block mb-0.5">Drawn Funds D2</label>
-            <input
-              type="number"
-              className={inputClass}
-              value={value.drawnFundsD2}
-              onChange={(e) => onChange('drawnFundsD2', e.target.value)}
-              placeholder="0.00"
-              disabled={isReadOnly}
-            />
-          </div>
-          <div>
-            <label className="text-[10px] text-[#677D6A] block mb-0.5">Subtotal</label>
-            <input
-              type="number"
-              className={`${inputClass} bg-gray-50`}
-              value={value.drawnFundsSubtotal}
-              readOnly
-              placeholder="0.00"
-            />
-          </div>
-          <div>
-            <label className="text-[10px] text-[#677D6A] block mb-0.5">Undrawn Funds</label>
-            <input
-              type="number"
-              className={`${inputClass} bg-gray-50`}
-              value={value.undrawnFundsToDate}
-              readOnly
-              placeholder="0.00"
-            />
+        <div className="flex items-center justify-between mb-2">
+          <h4 className={labelClass}>Drawdown Funds</h4>
+          {!isReadOnly && (
+            <button
+              type="button"
+              onClick={handleAddDrawdown}
+              className="flex items-center gap-1 px-2 py-1 bg-[#677D6A] text-white rounded text-[9px] hover:bg-[#40534C] transition-colors"
+            >
+              <Plus className="w-3 h-3" />
+              Add Drawdown
+            </button>
+          )}
+        </div>
+        
+        <div className="space-y-2">
+          {safeDrawdowns.map((drawdown, index) => (
+            <div key={drawdown.id} className="flex items-center gap-2">
+              <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[8px] text-[#677D6A] block mb-0.5">
+                    Drawdown {index + 1} Amount (KES)
+                  </label>
+                  <input
+                    type="number"
+                    className={inputClass}
+                    value={drawdown.amount}
+                    onChange={(e) => handleDrawdownChange(drawdown.id, e.target.value)}
+                    placeholder="0.00"
+                    disabled={isReadOnly}
+                  />
+                </div>
+                <div className="flex items-end">
+                  {!isReadOnly && safeDrawdowns.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveDrawdown(drawdown.id)}
+                      className="mb-1.5 p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                      title="Remove drawdown"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Totals */}
+        <div className="mt-3 pt-2 border-t border-[#D6BD98]/10">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="text-[9px] font-semibold text-[#1A3636] block mb-0.5">Subtotal Drawn</label>
+              <input
+                type="number"
+                className={`${inputClass} bg-gray-50 font-medium`}
+                value={value.drawnFundsSubtotal}
+                readOnly
+                placeholder="0.00"
+              />
+            </div>
+            <div>
+              <label className="text-[9px] font-semibold text-[#1A3636] block mb-0.5">Undrawn Funds</label>
+              <input
+                type="number"
+                className={`${inputClass} bg-gray-50 font-medium`}
+                value={value.undrawnFundsToDate}
+                readOnly
+                placeholder="0.00"
+              />
+            </div>
           </div>
         </div>
       </div>
 
       {/* Site Details */}
       <div className="py-3 border-b border-[#D6BD98]/10">
-        {/* CHANGED: Made header bolder */}
         <h4 className={labelClass}>Site Details</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
@@ -589,7 +704,7 @@ const SiteVisitSection: React.FC<{
   )
 }
 
-// Step 3: Project Info - BOLDER headers
+// Step 3: Project Info
 const ProjectInfoSection: React.FC<{
   value: SiteVisitCallReportForm;
   onChange: (field: keyof SiteVisitCallReportForm, value: any) => void;
@@ -599,7 +714,6 @@ const ProjectInfoSection: React.FC<{
     <div className={sectionClass}>
       {/* Site Visit Objectives */}
       <div className="py-3 border-b border-[#D6BD98]/10">
-        {/* CHANGED: Made header bolder */}
         <h4 className={labelClass}>Site Visit Objectives</h4>
         <div className="space-y-2">
           <div>
@@ -637,7 +751,6 @@ const ProjectInfoSection: React.FC<{
 
       {/* Works Progress */}
       <div className="py-3 border-b border-[#D6BD98]/10">
-        {/* CHANGED: Made header bolder */}
         <h4 className={labelClass}>Works Progress</h4>
         <div className="space-y-2">
           <div>
@@ -689,7 +802,6 @@ const ProjectInfoSection: React.FC<{
 
       {/* Drawdown Request */}
       <div className="py-3">
-        {/* CHANGED: Made header bolder */}
         <h4 className={labelClass}>Drawdown Request</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
@@ -719,7 +831,7 @@ const ProjectInfoSection: React.FC<{
   )
 }
 
-// Step 4: Documents - BOLDER headers
+// Step 4: Documents
 const DocumentsSection: React.FC<{
   value: SiteVisitCallReportForm;
   onChange: (field: keyof SiteVisitCallReportForm, value: any) => void;
@@ -750,7 +862,6 @@ const DocumentsSection: React.FC<{
   return (
     <div className={sectionClass}>
       <div className="py-3 border-b border-[#D6BD98]/10">
-        {/* CHANGED: Made header bolder */}
         <h4 className={labelClass}>Submitted Documents</h4>
         <div className="space-y-2">
           <DocumentItem
@@ -806,7 +917,6 @@ const DocumentsSection: React.FC<{
       </div>
 
       <div className="py-3">
-        {/* CHANGED: Made header bolder */}
         <h4 className={labelClass}>Sign-off</h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
@@ -845,7 +955,7 @@ const DocumentsSection: React.FC<{
   )
 }
 
-// Step 5: Photos - BOLDER headers
+// Step 5: Photos
 const PhotosSection: React.FC<{
   value: SiteVisitCallReportForm;
   onChange: (field: keyof SiteVisitCallReportForm, value: any) => void;
@@ -882,18 +992,30 @@ const PhotosSection: React.FC<{
 
 // Main Form Component
 const SiteVisitCallReportFormComponent: React.FC<Props> = ({ value, onChange, activeStep = 1, isReadOnly = false }) => {
+  // Migrate data on component mount if needed
+  const migratedValue = React.useMemo(() => {
+    return migrateDrawdowns(value)
+  }, [value])
+
+  // Update parent if migration changed the value
+  useEffect(() => {
+    if (JSON.stringify(migratedValue) !== JSON.stringify(value)) {
+      onChange(migratedValue)
+    }
+  }, [migratedValue])
+
   const updateField = <K extends keyof SiteVisitCallReportForm>(field: K, nextValue: SiteVisitCallReportForm[K]) => {
     if (!isReadOnly) {
-      onChange({ ...value, [field]: nextValue })
+      onChange({ ...migratedValue, [field]: nextValue })
     }
   }
 
   const updateSubmittedDocs = (field: keyof SiteVisitSubmittedDocs, nextValue: string) => {
     if (!isReadOnly) {
       onChange({
-        ...value,
+        ...migratedValue,
         documentsSubmitted: {
-          ...value.documentsSubmitted,
+          ...migratedValue.documentsSubmitted,
           [field]: nextValue,
         },
       })
@@ -902,17 +1024,17 @@ const SiteVisitCallReportFormComponent: React.FC<Props> = ({ value, onChange, ac
 
   switch (activeStep) {
     case 1:
-      return <CustomerInfoSection value={value} onChange={updateField} isReadOnly={isReadOnly} />
+      return <CustomerInfoSection value={migratedValue} onChange={updateField} isReadOnly={isReadOnly} />
     case 2:
-      return <SiteVisitSection value={value} onChange={updateField} isReadOnly={isReadOnly} />
+      return <SiteVisitSection value={migratedValue} onChange={updateField} isReadOnly={isReadOnly} />
     case 3:
-      return <ProjectInfoSection value={value} onChange={updateField} isReadOnly={isReadOnly} />
+      return <ProjectInfoSection value={migratedValue} onChange={updateField} isReadOnly={isReadOnly} />
     case 4:
-      return <DocumentsSection value={value} onChange={updateField} onNestedChange={updateSubmittedDocs} isReadOnly={isReadOnly} />
+      return <DocumentsSection value={migratedValue} onChange={updateField} onNestedChange={updateSubmittedDocs} isReadOnly={isReadOnly} />
     case 5:
-      return <PhotosSection value={value} onChange={updateField} isReadOnly={isReadOnly} />
+      return <PhotosSection value={migratedValue} onChange={updateField} isReadOnly={isReadOnly} />
     default:
-      return <CustomerInfoSection value={value} onChange={updateField} isReadOnly={isReadOnly} />
+      return <CustomerInfoSection value={migratedValue} onChange={updateField} isReadOnly={isReadOnly} />
   }
 }
 

@@ -10,7 +10,7 @@ interface jsPDFWithAutoTable extends jsPDF {
     };
 }
 
-// ─── BRAND COLOURS (BASED ON NCBA REPORT STYLE) ──────────────────────────────
+// ─── BRAND COLOURS ──────────────────────────────────────────────
 const NCBA_DARK = '#1A3636';
 const NCBA_GOLD_ACCENT = '#D6BD98'; 
 const SECTION_BG = '#F3F4F6';      
@@ -46,7 +46,7 @@ export const generateSiteVisitReportPDF = (
     formData: SiteVisitCallReportForm,
     reportNumber: string,
     ncbaLogoBase64?: string,
-    reportStatus?: string, // Changed from approvedBy to reportStatus
+    reportStatus?: string,
     approvalDate?: string
 ): jsPDF => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' }) as jsPDFWithAutoTable;
@@ -78,30 +78,26 @@ export const generateSiteVisitReportPDF = (
 
     const val = (v?: string | null, fallback = 'None') => (v && v.trim() ? v : fallback);
 
-    // --- PAGE HEADER (Logo Left, System Name Right) ---
+    // --- PAGE HEADER ---
     const addPageHeader = () => {
-        // ENLARGED NCBA Logo on the Far Left
         if (ncbaLogoBase64 && ncbaLogoBase64.startsWith('data:image')) {
             try {
                 const format = ncbaLogoBase64.includes('png') ? 'PNG' : 'JPEG';
-                // ENLARGED: Increased from 30x10 to 45x15
                 doc.addImage(ncbaLogoBase64, format, margin, 6, 45, 15, undefined, 'FAST');
             } catch (e) { console.error("Logo error", e); }
         }
 
-        // System Name "GeoBuild" on the Far Right
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(12);
         doc.setTextColor(NCBA_DARK);
         doc.text('GeoBuild', pageWidth - margin, 15, { align: 'right' });
 
-        // Subtle divider line under header - moved down slightly to accommodate larger logo
         doc.setDrawColor(SECTION_BG);
         doc.setLineWidth(0.1);
         doc.line(margin, 22, pageWidth - margin, 22);
     };
 
-    // --- SECTION HEADER (Grey bar with Gold Square) ---
+    // --- SECTION HEADER ---
     const addSectionTitle = (title: string, y: number): number => {
         doc.setFillColor(SECTION_BG);
         doc.rect(margin, y, contentWidth, 8, 'F');
@@ -152,17 +148,15 @@ export const generateSiteVisitReportPDF = (
     // --- START DRAWING ---
     addPageHeader();
 
-    // Format the status for display
     const displayStatus = formatStatus(reportStatus);
     
-    // Determine status color
     const getStatusColor = (status: string): [number, number, number] => {
         const lowerStatus = status.toLowerCase();
-        if (lowerStatus.includes('approved')) return [0, 128, 0]; // Green
-        if (lowerStatus.includes('rework')) return [255, 140, 0]; // Orange
-        if (lowerStatus.includes('review')) return [0, 81, 158]; // Blue
-        if (lowerStatus.includes('pending')) return [128, 128, 128]; // Gray
-        return [100, 100, 100]; // Default gray
+        if (lowerStatus.includes('approved')) return [0, 128, 0];
+        if (lowerStatus.includes('rework')) return [255, 140, 0];
+        if (lowerStatus.includes('review')) return [0, 81, 158];
+        if (lowerStatus.includes('pending')) return [128, 128, 128];
+        return [100, 100, 100];
     };
 
     // Main Title and Metadata
@@ -196,12 +190,45 @@ export const generateSiteVisitReportPDF = (
         ['BQ amount:', formatCurrency(formData.bqAmount)],
         ['Construction loan amount:', formatCurrency(formData.constructionLoanAmount)],
         ['Customer\'s contribution:', formatCurrency(formData.customerContribution)],
-        ['Drawn Funds to Date:', ''],
-        [{ content: 'D1: KES.', styles: { halign: 'right' } }, formatCurrency(formData.drawnFundsD1).replace('KES ', '')],
-        [{ content: 'D2: KES.', styles: { halign: 'right' } }, formatCurrency(formData.drawnFundsD2).replace('KES ', '')],
-        [{ content: 'Sub-total:', styles: { halign: 'right', fontStyle: 'bold' } }, formatCurrency(formData.drawnFundsSubtotal)],
-        ['Undrawn funds to date:', formatCurrency(formData.undrawnFundsToDate)]
+        [{ content: 'Drawdown Funds to Date:', colSpan: 2, styles: { fillColor: SECTION_BG, fontStyle: 'bold' } }],
     ], currentY);
+
+    // UPDATED: Add each drawdown as a separate row
+    if (formData.drawdowns && formData.drawdowns.length > 0) {
+        formData.drawdowns.forEach((drawdown, index) => {
+            autoTable(doc, {
+                startY: (doc as any).lastAutoTable.finalY,
+                margin: { left: margin, right: margin },
+                theme: 'grid',
+                styles: { fontSize: 9, cellPadding: 3 },
+                columnStyles: {
+                    0: { fontStyle: 'bold', cellWidth: contentWidth * 0.4 },
+                    1: { cellWidth: contentWidth * 0.6 }
+                },
+                body: [
+                    [`Drawdown ${index + 1}:`, formatCurrency(drawdown.amount).replace('KES ', '')]
+                ],
+            });
+        });
+    }
+
+    // Add totals
+    autoTable(doc, {
+        startY: (doc as any).lastAutoTable.finalY,
+        margin: { left: margin, right: margin },
+        theme: 'grid',
+        styles: { fontSize: 9, cellPadding: 3, fontStyle: 'bold' },
+        columnStyles: {
+            0: { cellWidth: contentWidth * 0.4 },
+            1: { cellWidth: contentWidth * 0.6 }
+        },
+        body: [
+            ['Sub-total:', formatCurrency(formData.drawnFundsSubtotal)],
+            ['Undrawn funds to date:', formatCurrency(formData.undrawnFundsToDate)]
+        ],
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 8;
 
     // 2. ADDITIONAL INFORMATION
     currentY = createSection('2. ADDITIONAL INFORMATION', [
@@ -256,7 +283,7 @@ export const generateSiteVisitReportPDF = (
     doc.line(margin + 5, currentY + 18, margin + 65, currentY + 18);
     doc.line(margin + (contentWidth / 2) + 5, currentY + 18, margin + contentWidth - 5, currentY + 18);
 
-    // --- PHOTO PAGES (Grid layout) ---
+    // --- PHOTO PAGES ---
     const photoSets = [
         { title: 'PROGRESS PHOTOS', data: formData.progressPhotosPage3 || [] },
         { title: 'MATERIALS ON SITE', data: formData.materialsOnSitePhotos || [] },

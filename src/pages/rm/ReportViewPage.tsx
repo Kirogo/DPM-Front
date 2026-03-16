@@ -21,7 +21,9 @@ import {
   FiTarget,
   FiFileSignature,
   FiEye,
-  FiInfo
+  FiInfo,
+  FiClipboard,
+  FiList
 } from 'react-icons/fi'
 import { formatNairobiDateTime } from '@/utils/dateUtils'
 // IMPORT THE LOGO DIRECTLY
@@ -112,6 +114,7 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
 const tabs = [
   { id: 'customer-info', label: 'Customer Info', icon: FiUser },
   { id: 'site-visit', label: 'Site Visit', icon: FiMapPin },
+  { id: 'project-info', label: 'Project Info', icon: FiHome },
   { id: 'financial', label: 'Financial', icon: FiBriefcase },
   { id: 'documents', label: 'Documents', icon: FiFileText },
   { id: 'photos', label: 'Photos', icon: FiImage },
@@ -134,7 +137,6 @@ export const ReportViewPage: React.FC = () => {
   useEffect(() => {
     const loadLogo = async () => {
       try {
-        // Convert the imported logo to base64
         const base64 = await getBase64ImageFromUrl(ncbaLogo)
         if (base64) {
           setLogoBase64(base64)
@@ -204,9 +206,9 @@ export const ReportViewPage: React.FC = () => {
       const doc = generateSiteVisitReportPDF(
         formData, 
         reportNumber,
-        logoBase64, // Pass the loaded logo
-        reportStatus, // Pass the report status
-        undefined // approvalDate (optional)
+        logoBase64,
+        reportStatus,
+        undefined
       )
       
       doc.save(`Site_Visit_Report_${reportNumber}_${new Date().toISOString().split('T')[0]}.pdf`)
@@ -294,6 +296,10 @@ export const ReportViewPage: React.FC = () => {
             <p className="text-[9px] text-[#677D6A]">IBPS Number</p>
             <p className="text-xs text-[#40534C] mt-0.5">{getValue(checklist, 'ibpsNo') || '—'}</p>
           </div>
+          <div className="col-span-2">
+            <p className="text-[9px] text-[#677D6A]">Brief Profile</p>
+            <p className="text-xs text-[#40534C] mt-0.5">{form?.briefProfile || '—'}</p>
+          </div>
         </div>
       </div>
 
@@ -363,7 +369,7 @@ export const ReportViewPage: React.FC = () => {
             <p className="text-[9px] text-[#677D6A]">Site PIN</p>
             <p className="text-xs text-[#40534C] mt-0.5">{form?.sitePin || '—'}</p>
           </div>
-          <div>
+          <div className="col-span-2">
             <p className="text-[9px] text-[#677D6A]">Security Details</p>
             <p className="text-xs text-[#40534C] mt-0.5">{form?.securityDetails || '—'}</p>
           </div>
@@ -392,24 +398,98 @@ export const ReportViewPage: React.FC = () => {
 
       <div className="border-t border-[#D6BD98]/10"></div>
 
+      {/* UPDATED: Drawdown Funds with multiple drawdowns */}
       <div>
         <h3 className="text-[10px] font-bold text-[#1A3636] uppercase tracking-wider mb-2">Drawdown Funds</h3>
+        <div className="space-y-2">
+          {form?.drawdowns && form.drawdowns.length > 0 ? (
+            form.drawdowns.map((drawdown: any, index: number) => (
+              <div key={drawdown.id || index} className="grid grid-cols-2 gap-3 bg-[#F5F7F4] p-2 rounded">
+                <div>
+                  <p className="text-[8px] text-[#677D6A]">Drawdown {index + 1}</p>
+                  <p className="text-xs font-medium text-[#1A3636] mt-0.5">{formatCurrency(drawdown.amount)}</p>
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="text-xs text-[#40534C]">No drawdowns recorded</p>
+          )}
+          <div className="grid grid-cols-2 gap-3 mt-2 pt-2 border-t border-[#D6BD98]/10">
+            <div>
+              <p className="text-[9px] font-semibold text-[#1A3636]">Subtotal Drawn</p>
+              <p className="text-sm font-bold text-[#1A3636] mt-0.5">{formatCurrency(form?.drawnFundsSubtotal)}</p>
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold text-[#1A3636]">Undrawn Funds</p>
+              <p className="text-sm font-bold text-[#1A3636] mt-0.5">{formatCurrency(form?.undrawnFundsToDate)}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+
+  const renderProjectInfoTab = () => (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-[10px] font-bold text-[#1A3636] uppercase tracking-wider mb-2 flex items-center gap-1">
+          <FiTarget className="w-3 h-3" />
+          Site Visit Objectives
+        </h3>
+        <div className="space-y-2">
+          <div className="bg-[#F5F7F4] p-2 rounded">
+            <p className="text-[8px] text-[#677D6A] mb-0.5">Objective 1: Confirm progress</p>
+            <p className="text-[10px] text-[#40534C]">{form?.siteVisitObjective1 || '—'}</p>
+          </div>
+          <div className="bg-[#F5F7F4] p-2 rounded">
+            <p className="text-[8px] text-[#677D6A] mb-0.5">Objective 2: Check defects</p>
+            <p className="text-[10px] text-[#40534C]">{form?.siteVisitObjective2 || '—'}</p>
+          </div>
+          <div className="bg-[#F5F7F4] p-2 rounded">
+            <p className="text-[8px] text-[#677D6A] mb-0.5">Objective 3: Note materials</p>
+            <p className="text-[10px] text-[#40534C]">{form?.siteVisitObjective3 || '—'}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="border-t border-[#D6BD98]/10"></div>
+
+      <div>
+        <h3 className="text-[10px] font-bold text-[#1A3636] uppercase tracking-wider mb-2">Works Progress</h3>
+        <div className="space-y-2">
+          <div>
+            <p className="text-[9px] text-[#677D6A]">Works Complete</p>
+            <p className="text-[10px] text-[#40534C] mt-0.5 bg-[#F5F7F4] p-2 rounded">{form?.worksComplete || '—'}</p>
+          </div>
+          <div>
+            <p className="text-[9px] text-[#677D6A]">Works Ongoing</p>
+            <p className="text-[10px] text-[#40534C] mt-0.5 bg-[#F5F7F4] p-2 rounded">{form?.worksOngoing || '—'}</p>
+          </div>
+          <div>
+            <p className="text-[9px] text-[#677D6A]">Materials Found on Site</p>
+            <p className="text-[10px] text-[#40534C] mt-0.5 bg-[#F5F7F4] p-2 rounded">{form?.materialsFoundOnSite || '—'}</p>
+          </div>
+          <div>
+            <p className="text-[9px] text-[#677D6A]">Defects Noted on Site</p>
+            <p className="text-[10px] text-amber-800 mt-0.5 bg-amber-50 p-2 rounded border-l-2 border-amber-400">
+              {form?.defectsNotedOnSite || '—'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="border-t border-[#D6BD98]/10"></div>
+
+      <div>
+        <h3 className="text-[10px] font-bold text-[#1A3636] uppercase tracking-wider mb-2">Drawdown Request</h3>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <p className="text-[9px] text-[#677D6A]">Drawn Funds D1</p>
-            <p className="text-xs text-[#40534C] mt-0.5">{formatCurrency(form?.drawnFundsD1)}</p>
+            <p className="text-[9px] text-[#677D6A]">Request Number</p>
+            <p className="text-xs text-[#40534C] mt-0.5">{form?.drawdownRequestNo || '—'}</p>
           </div>
           <div>
-            <p className="text-[9px] text-[#677D6A]">Drawn Funds D2</p>
-            <p className="text-xs text-[#40534C] mt-0.5">{formatCurrency(form?.drawnFundsD2)}</p>
-          </div>
-          <div>
-            <p className="text-[9px] text-[#677D6A]">Subtotal Drawn</p>
-            <p className="text-xs font-medium text-[#1A3636] mt-0.5">{formatCurrency(form?.drawnFundsSubtotal)}</p>
-          </div>
-          <div>
-            <p className="text-[9px] text-[#677D6A]">Undrawn Funds</p>
-            <p className="text-xs font-medium text-[#1A3636] mt-0.5">{formatCurrency(form?.undrawnFundsToDate)}</p>
+            <p className="text-[9px] text-[#677D6A]">Amount Requested</p>
+            <p className="text-sm font-semibold text-[#1A3636] mt-0.5">{formatCurrency(form?.drawdownKesAmount)}</p>
           </div>
         </div>
       </div>
@@ -441,24 +521,27 @@ export const ReportViewPage: React.FC = () => {
 
       <div className="border-t border-[#D6BD98]/10"></div>
 
+      {/* UPDATED: Drawdown Details with multiple drawdowns */}
       <div>
         <h3 className="text-[10px] font-bold text-[#1A3636] uppercase tracking-wider mb-2">Drawdown Details</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <p className="text-[9px] text-[#677D6A]">Drawn Funds D1</p>
-            <p className="text-xs text-[#40534C] mt-0.5">{formatCurrency(form?.drawnFundsD1)}</p>
+        <div className="space-y-2">
+          {form?.drawdowns && form.drawdowns.length > 0 ? (
+            form.drawdowns.map((drawdown: any, index: number) => (
+              <div key={drawdown.id || index} className="flex justify-between py-1 border-b border-[#D6BD98]/10 last:border-0">
+                <p className="text-[9px] text-[#677D6A]">Drawdown {index + 1}</p>
+                <p className="text-xs font-medium text-[#1A3636]">{formatCurrency(drawdown.amount)}</p>
+              </div>
+            ))
+          ) : (
+            <p className="text-xs text-[#40534C]">No drawdowns recorded</p>
+          )}
+          <div className="flex justify-between pt-2 mt-2 border-t border-[#D6BD98]/10">
+            <p className="text-[9px] font-semibold text-[#1A3636]">Subtotal Drawn</p>
+            <p className="text-sm font-bold text-[#1A3636]">{formatCurrency(form?.drawnFundsSubtotal)}</p>
           </div>
-          <div>
-            <p className="text-[9px] text-[#677D6A]">Drawn Funds D2</p>
-            <p className="text-xs text-[#40534C] mt-0.5">{formatCurrency(form?.drawnFundsD2)}</p>
-          </div>
-          <div>
-            <p className="text-[9px] text-[#677D6A]">Subtotal Drawn</p>
-            <p className="text-xs font-medium text-[#1A3636] mt-0.5">{formatCurrency(form?.drawnFundsSubtotal)}</p>
-          </div>
-          <div>
-            <p className="text-[9px] text-[#677D6A]">Undrawn Funds</p>
-            <p className="text-xs font-medium text-[#1A3636] mt-0.5">{formatCurrency(form?.undrawnFundsToDate)}</p>
+          <div className="flex justify-between">
+            <p className="text-[9px] font-semibold text-[#1A3636]">Undrawn Funds</p>
+            <p className="text-sm font-bold text-[#1A3636]">{formatCurrency(form?.undrawnFundsToDate)}</p>
           </div>
         </div>
       </div>
@@ -680,6 +763,7 @@ export const ReportViewPage: React.FC = () => {
       <div className="px-3 lg:px-4 py-3">
         {activeTab === 'customer-info' && renderCustomerInfoTab()}
         {activeTab === 'site-visit' && renderSiteVisitTab()}
+        {activeTab === 'project-info' && renderProjectInfoTab()}
         {activeTab === 'financial' && renderFinancialTab()}
         {activeTab === 'documents' && renderDocumentsTab()}
         {activeTab === 'photos' && renderPhotosTab()}

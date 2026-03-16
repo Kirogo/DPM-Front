@@ -20,7 +20,8 @@ import {
   FiEye,
   FiInfo,
   FiHash,
-  FiCreditCard
+  FiCreditCard,
+  FiList
 } from 'react-icons/fi'
 // IMPORT THE LOGO DIRECTLY
 import ncbaLogo from '@/assets/NCBALogo.png'
@@ -31,7 +32,7 @@ interface PreviewStepProps {
   isReadOnly?: boolean
   reportNumber?: string
   customerNumber?: string
-  reportStatus?: string // Add report status prop
+  reportStatus?: string
 }
 
 // Helper function to format currency
@@ -96,7 +97,7 @@ const getBase64ImageFromUrl = async (imageUrl: string): Promise<string> => {
   }
 }
 
-// Info Row Component - Minimal design
+// Info Row Component
 const InfoRow: React.FC<{ 
   label: string; 
   value: any;
@@ -110,7 +111,7 @@ const InfoRow: React.FC<{
   </div>
 )
 
-// Section Header Component - Matching QSReviewDetailPage
+// Section Header Component
 const SectionHeader: React.FC<{ 
   title: string; 
   icon?: React.ReactNode;
@@ -136,7 +137,7 @@ const SectionHeader: React.FC<{
   </div>
 )
 
-// Document Status Component - Minimal
+// Document Status Component
 const DocumentStatus: React.FC<{ 
   label: string; 
   value: string;
@@ -153,7 +154,7 @@ const DocumentStatus: React.FC<{
   </div>
 )
 
-// Photo Grid Component - Minimal
+// Photo Grid Component
 const PhotoGrid: React.FC<{ 
   photos: string[]; 
   title: string;
@@ -209,7 +210,7 @@ const PreviewStep: React.FC<PreviewStepProps> = ({
   isReadOnly = false,
   reportNumber = 'CRN-000',
   customerNumber = '—',
-  reportStatus = 'draft' // Default to draft if not provided
+  reportStatus = 'draft'
 }) => {
   const [isDownloading, setIsDownloading] = useState(false)
   const [logoBase64, setLogoBase64] = useState<string>('')
@@ -234,16 +235,13 @@ const PreviewStep: React.FC<PreviewStepProps> = ({
   const handleDownloadPDF = async () => {
     setIsDownloading(true)
     try {
-      // Create a deep copy of formData to avoid mutations
       const pdfData = JSON.parse(JSON.stringify(formData))
       
-      // Ensure all required arrays exist
       pdfData.progressPhotosPage3 = pdfData.progressPhotosPage3 || []
       pdfData.materialsOnSitePhotos = pdfData.materialsOnSitePhotos || []
       pdfData.defectsNotedPhotos = pdfData.defectsNotedPhotos || []
       pdfData.documentsSubmitted = pdfData.documentsSubmitted || {}
 
-      // Ensure the report number and customer number are in the PDF data
       pdfData.callReportNo = reportNumber
       pdfData.customerNumber = customerNumber
 
@@ -251,8 +249,8 @@ const PreviewStep: React.FC<PreviewStepProps> = ({
         pdfData,
         reportNumber,
         logoBase64,
-        reportStatus, // Pass the report status
-        undefined // approvalDate (optional)
+        reportStatus,
+        undefined
       )
       
       doc.save(`Site_Visit_Report_${reportNumber}_${new Date().toISOString().split('T')[0]}.pdf`)
@@ -275,19 +273,6 @@ const PreviewStep: React.FC<PreviewStepProps> = ({
             {isReadOnly ? 'Report Preview' : 'Review & Submit'}
           </h2>
         </div>
-        
-        {/* Download Button */}
-        {/*<Button
-          variant="primary"
-          size="sm"
-          onClick={handleDownloadPDF}
-          disabled={isDownloading}
-          className="text-[9px] h-6 px-2 bg-[#677D6A] hover:bg-[#40534C] text-white"
-          title="Download PDF"
-        >
-          <FiDownload className="w-2.5 h-2.5 mr-1" />
-          {isDownloading ? '...' : 'PDF'}
-        </Button>*/}
       </div>
 
       {/* Customer Information Section */}
@@ -346,15 +331,23 @@ const PreviewStep: React.FC<PreviewStepProps> = ({
           </div>
         )}
 
-        {/* Drawdown Details */}
-        {(formData.drawnFundsD1 || formData.drawnFundsD2) && (
+        {/* UPDATED: Drawdown Details with multiple drawdowns */}
+        {(formData.drawdowns && formData.drawdowns.length > 0) && (
           <div className="mt-2">
-            <h4 className="text-[9px] font-semibold text-[#1A3636] uppercase tracking-wider mb-2">Drawdown Funds</h4>
-            <div className="grid grid-cols-2 gap-3">
-              <InfoRow label="Drawn Funds D1" value={formatCurrency(formData.drawnFundsD1)} />
-              <InfoRow label="Drawn Funds D2" value={formatCurrency(formData.drawnFundsD2)} />
-              <InfoRow label="Subtotal Drawn" value={formatCurrency(formData.drawnFundsSubtotal)} />
-              <InfoRow label="Undrawn Funds" value={formatCurrency(formData.undrawnFundsToDate)} />
+            <h4 className="text-[9px] font-semibold text-[#1A3636] uppercase tracking-wider mb-2 flex items-center gap-1">
+              <FiList className="w-2.5 h-2.5" />
+              Drawdown Funds
+            </h4>
+            <div className="space-y-2">
+              {formData.drawdowns.map((drawdown, index) => (
+                <div key={drawdown.id} className="grid grid-cols-2 gap-3 bg-[#F5F7F4] p-2 rounded">
+                  <InfoRow label={`Drawdown ${index + 1}`} value={formatCurrency(drawdown.amount)} />
+                </div>
+              ))}
+              <div className="grid grid-cols-2 gap-3 mt-2 pt-2 border-t border-[#D6BD98]/10">
+                <InfoRow label="Subtotal Drawn" value={formatCurrency(formData.drawnFundsSubtotal)} />
+                <InfoRow label="Undrawn Funds" value={formatCurrency(formData.undrawnFundsToDate)} />
+              </div>
             </div>
           </div>
         )}
