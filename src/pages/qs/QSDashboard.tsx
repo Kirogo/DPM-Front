@@ -31,6 +31,7 @@ interface ActivityItem {
   reportId: string
   reportNo: string
   customerName: string
+  projectName?: string  // Added projectName field
   rmName: string
   rmId?: string
   qsName?: string
@@ -63,12 +64,10 @@ export const QSDashboard: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const statsScrollRef = useRef<HTMLDivElement>(null)
 
-  // Transform checklists to reports format
   const allReports = useMemo(() => {
     return transformChecklistsToReports(checklists)
   }, [checklists])
 
-  // Calculate overall stats
   const overallStats = {
     totalReports: allReports?.length || 0,
     pendingReviews: allReports?.filter(r => 
@@ -87,7 +86,6 @@ export const QSDashboard: React.FC = () => {
     ).length || 0,
   }
 
-  // Fetch comments for all reports
   useEffect(() => {
     const fetchAllComments = async () => {
       if (allReports.length === 0) return
@@ -96,24 +94,19 @@ export const QSDashboard: React.FC = () => {
       const allActivities: ActivityItem[] = []
       const processedCommentIds = new Set<string>()
       
-      // Process each report to get comments
       for (const report of allReports.slice(0, 20)) {
         try {
           const reportNo = report.reportNo || report.dclNo || 'Unknown'
           const customerName = report.customerName || report.clientName || 'Unknown Customer'
+          const projectName = report.projectName || report.loanType || ''  // Get project name
           const rmName = report.rmName || report.assignedToRM?.name || 'Unknown RM'
           
-          // Fetch comments using the comment API
           const comments = await commentApi.getComments(report.id)
           
-          // Add each comment as an activity
           comments.forEach((comment: Comment) => {
-            if (!comment.id) return
-            
-            if (processedCommentIds.has(comment.id)) return
+            if (!comment.id || processedCommentIds.has(comment.id)) return
             processedCommentIds.add(comment.id)
             
-            // Ensure we have a valid timestamp
             let timestamp = new Date().toISOString()
             if (comment.createdAt) {
               timestamp = typeof comment.createdAt === 'string' 
@@ -123,10 +116,8 @@ export const QSDashboard: React.FC = () => {
                   : new Date().toISOString()
             }
             
-            // Determine if comment is from QS or RM
             const isQS = comment.userRole?.toLowerCase() === 'qs'
             
-            // Only add if there's actual comment text
             if (comment.content || comment.text) {
               allActivities.push({
                 id: comment.id,
@@ -134,6 +125,7 @@ export const QSDashboard: React.FC = () => {
                 reportId: report.id,
                 reportNo,
                 customerName,
+                projectName,  // Include project name
                 rmName: rmName,
                 qsName: isQS ? comment.userName : undefined,
                 timestamp: timestamp,
@@ -149,13 +141,7 @@ export const QSDashboard: React.FC = () => {
         }
       }
       
-      // Sort by timestamp (most recent first)
-      allActivities.sort((a, b) => {
-        const timeA = new Date(a.timestamp).getTime()
-        const timeB = new Date(b.timestamp).getTime()
-        return timeB - timeA
-      })
-      
+      allActivities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       setActivityItems(allActivities)
       setIsLoadingComments(false)
     }
@@ -163,9 +149,8 @@ export const QSDashboard: React.FC = () => {
     fetchAllComments()
   }, [allReports, user])
 
-  // Mock data for scheduled visits - replace with actual API call
   useEffect(() => {
-    // This would be replaced with actual API call
+    // Mock data for March 2026
     const mockScheduledVisits: ScheduledVisit[] = [
       {
         id: '1',
@@ -173,7 +158,7 @@ export const QSDashboard: React.FC = () => {
         reportNo: 'CRN-001',
         customerName: 'John Doe Construction',
         siteAddress: 'Plot 123, Industrial Area, Nairobi',
-        scheduledDate: '2024-03-15',
+        scheduledDate: '2026-03-15',
         scheduledTime: '10:00 AM',
         status: 'scheduled',
         rmName: 'Michael Mwai'
@@ -184,7 +169,7 @@ export const QSDashboard: React.FC = () => {
         reportNo: 'CRN-002',
         customerName: 'ABC Developers',
         siteAddress: 'Westlands, Nairobi',
-        scheduledDate: '2024-03-16',
+        scheduledDate: '2026-03-17',
         scheduledTime: '2:30 PM',
         status: 'scheduled',
         rmName: 'Sarah Kimani'
@@ -195,7 +180,7 @@ export const QSDashboard: React.FC = () => {
         reportNo: 'CRN-003',
         customerName: 'XYZ Properties',
         siteAddress: 'Kilimani, Nairobi',
-        scheduledDate: '2024-03-17',
+        scheduledDate: '2026-03-18',
         scheduledTime: '11:00 AM',
         status: 'scheduled',
         rmName: 'James Otieno'
@@ -206,28 +191,15 @@ export const QSDashboard: React.FC = () => {
         reportNo: 'CRN-004',
         customerName: 'Pinnacle Developers',
         siteAddress: 'Karen, Nairobi',
-        scheduledDate: '2024-03-18',
+        scheduledDate: '2026-03-19',
         scheduledTime: '9:30 AM',
         status: 'scheduled',
         rmName: 'Lucy Wanjiku'
-      },
-      {
-        id: '5',
-        reportId: '127',
-        reportNo: 'CRN-005',
-        customerName: 'Highland Construction',
-        siteAddress: 'Limuru Road, Nairobi',
-        scheduledDate: '2024-03-19',
-        scheduledTime: '2:00 PM',
-        status: 'scheduled',
-        rmName: 'Peter Kamau'
       }
     ]
-    
     setScheduledVisits(mockScheduledVisits)
   }, [])
 
-  // Handle manual refresh
   const handleRefresh = async () => {
     setIsRefreshing(true)
     try {
@@ -240,13 +212,13 @@ export const QSDashboard: React.FC = () => {
         try {
           const reportNo = report.reportNo || report.dclNo || 'Unknown'
           const customerName = report.customerName || report.clientName || 'Unknown Customer'
+          const projectName = report.projectName || report.loanType || ''  // Get project name
           const rmName = report.rmName || report.assignedToRM?.name || 'Unknown RM'
           
           const comments = await commentApi.getComments(report.id)
           
           comments.forEach((comment: Comment) => {
-            if (!comment.id) return
-            if (processedCommentIds.has(comment.id)) return
+            if (!comment.id || processedCommentIds.has(comment.id)) return
             processedCommentIds.add(comment.id)
             
             let timestamp = new Date().toISOString()
@@ -267,6 +239,7 @@ export const QSDashboard: React.FC = () => {
                 reportId: report.id,
                 reportNo,
                 customerName,
+                projectName,  // Include project name
                 rmName: rmName,
                 qsName: isQS ? comment.userName : undefined,
                 timestamp: timestamp,
@@ -281,12 +254,7 @@ export const QSDashboard: React.FC = () => {
         }
       }
       
-      allActivities.sort((a, b) => {
-        const timeA = new Date(a.timestamp).getTime()
-        const timeB = new Date(b.timestamp).getTime()
-        return timeB - timeA
-      })
-      
+      allActivities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       setActivityItems(allActivities)
     } catch (error) {
       console.error('Refresh failed:', error)
@@ -314,16 +282,8 @@ export const QSDashboard: React.FC = () => {
     try {
       const date = new Date(timestamp)
       if (isNaN(date.getTime())) return 'Unknown'
-      
-      // Format as DD/MM/YYYY
-      return date.toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-      }).replace(/\//g, '/')
-    } catch {
-      return 'Unknown'
-    }
+      return date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    } catch { return 'Unknown' }
   }
 
   const formatVisitDate = (date: string, time: string) => {
@@ -332,53 +292,82 @@ export const QSDashboard: React.FC = () => {
     const tomorrow = new Date(today)
     tomorrow.setDate(tomorrow.getDate() + 1)
     
-    if (visitDate.toDateString() === today.toDateString()) {
-      return `Today at ${time}`
-    } else if (visitDate.toDateString() === tomorrow.toDateString()) {
-      return `Tomorrow at ${time}`
-    } else {
-      return visitDate.toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-      }) + ` at ${time}`
-    }
+    if (visitDate.toDateString() === today.toDateString()) return `Today at ${time}`
+    if (visitDate.toDateString() === tomorrow.toDateString()) return `Tomorrow at ${time}`
+    return visitDate.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ` at ${time}`
   }
 
   const getActivityIcon = (type: string) => {
     switch (type) {
-      case 'submitted':
-        return <FiSend className="w-3.5 h-3.5 text-primary-500" />
-      case 'approved':
-        return <FiThumbsUp className="w-3.5 h-3.5 text-primary-500" />
-      case 'rework':
-        return <FiRework className="w-3.5 h-3.5 text-accent-500" />
-      case 'commented':
-        return <FiMessageSquare className="w-3.5 h-3.5 text-primary-600" />
-      case 'rejected':
-        return <FiXCircle className="w-3.5 h-3.5 text-accent-500" />
-      default:
-        return <FiMessageSquare className="w-3.5 h-3.5 text-primary-600" />
+      case 'submitted': return <FiSend className="w-3.5 h-3.5 text-primary-500" />
+      case 'approved': return <FiThumbsUp className="w-3.5 h-3.5 text-primary-500" />
+      case 'rework': return <FiRework className="w-3.5 h-3.5 text-accent-500" />
+      case 'commented': return <FiMessageSquare className="w-3.5 h-3.5 text-primary-600" />
+      case 'rejected': return <FiXCircle className="w-3.5 h-3.5 text-accent-500" />
+      default: return <FiMessageSquare className="w-3.5 h-3.5 text-primary-600" />
     }
+  }
+
+  // FIXED CALENDAR LOGIC - CORRECTED
+  const getCalendarDays = () => {
+    const today = new Date()
+    const currentYear = today.getFullYear()
+    const currentMonth = today.getMonth()
+    
+    // 1. Get the first day of the month
+    const firstDayOfMonth = new Date(currentYear, currentMonth, 1)
+    // .getDay() returns 0 for Sunday, 1 for Monday...
+    const startDayIndex = firstDayOfMonth.getDay() 
+    
+    // 2. Get total days in current month
+    const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0)
+    const totalDaysInMonth = lastDayOfMonth.getDate()
+    
+    const days = []
+    
+    // 3. Add empty cells for padding before the 1st
+    for (let i = 0; i < startDayIndex; i++) {
+      days.push({ day: '', isCurrentMonth: false, isToday: false, hasVisit: false, date: null })
+    }
+    
+    // 4. Add actual days
+    for (let d = 1; d <= totalDaysInMonth; d++) {
+      const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+      const isToday = d === today.getDate() && currentMonth === today.getMonth() && currentYear === today.getFullYear()
+      
+      const hasVisit = scheduledVisits.some(v => v.scheduledDate === dateStr)
+      
+      days.push({
+        day: d,
+        isCurrentMonth: true,
+        isToday,
+        hasVisit,
+        date: new Date(currentYear, currentMonth, d)
+      })
+    }
+    
+    // 5. Pad the end to keep grid consistent (optional but cleaner)
+    while (days.length % 7 !== 0 || days.length < 35) {
+        days.push({ day: '', isCurrentMonth: false, isToday: false, hasVisit: false, date: null })
+    }
+    
+    return days
   }
 
   if (error) {
     return (
       <div className="min-h-screen bg-primary-50 flex items-center justify-center">
         <div className="text-center p-6">
-          <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-accent-200 flex items-center justify-center">
-            <FiXCircle className="w-6 h-6 text-primary-600" />
-          </div>
+          <FiXCircle className="w-12 h-12 mx-auto mb-3 text-primary-600" />
           <h3 className="text-sm font-medium text-primary-800 mb-1">Failed to load dashboard</h3>
-          <p className="text-[10px] text-primary-500 mb-3">Unable to fetch reports. Please try again.</p>
           <Button size="sm" onClick={handleRefresh}>Retry</Button>
         </div>
       </div>
     )
   }
 
-  // Show only the most recent 10 activities
   const displayActivities = activityItems.slice(0, 10)
+  const calendarDays = getCalendarDays()
 
   return (
     <div className="min-h-screen bg-primary-50">
@@ -386,33 +375,22 @@ export const QSDashboard: React.FC = () => {
       <div className="sticky top-0 z-20 bg-primary-50 border-b border-accent-200 px-4 lg:px-6 py-2 lg:py-3">
         <div className="flex items-center justify-between">
           <div>
+            <h1 className="text-sm lg:text-base font-semibold text-primary-800">QS Dashboard</h1>
             <p className="text-[9px] lg:text-xs text-primary-500 mt-0.5 flex items-center gap-1">
               <FiClock className="w-3 h-3" />
-              {new Date().toLocaleDateString('en-US', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-              })}
+              {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {/* Refresh Button */}
-            <button
-              onClick={handleRefresh}
-              disabled={isRefreshing}
+            <button 
+              onClick={handleRefresh} 
+              disabled={isRefreshing} 
               className="p-1.5 rounded-md bg-primary-100 text-primary-600 hover:bg-primary-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               title="Refresh dashboard"
             >
               <FiRefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             </button>
-            
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => navigate('/qs/reviews/pending')}
-              className="h-8 text-xs"
-            >
+            <Button variant="primary" size="sm" onClick={() => navigate('/qs/reviews/pending')} className="h-8 text-xs">
               <FiBarChart2 className="w-3.5 h-3.5 mr-1.5" />
               Review Queue ({overallStats.pendingReviews})
             </Button>
@@ -420,9 +398,8 @@ export const QSDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Content */}
       <div className="px-4 lg:px-6 py-3 lg:py-4">
-        {/* Stats Cards */}
+        {/* Stats Cards with horizontal scroll on mobile */}
         <div className="relative -mx-4 lg:mx-0 mb-4 lg:mb-5">
           <div 
             ref={statsScrollRef}
@@ -435,22 +412,17 @@ export const QSDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Two Column Layout - 70/30 split with matching heights */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4">
           {/* Left Column - Activity Trail (70%) */}
           <div className="lg:col-span-8">
             <div className="border border-accent-200 rounded-lg bg-white overflow-hidden h-full flex flex-col">
-              {/* Activity Header - Fixed height */}
               <div className="px-3 py-2 border-b border-accent-200 bg-primary-50 flex-shrink-0">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xs font-semibold text-primary-800 flex items-center gap-1.5">
-                    <FiMessageSquare className="w-3.5 h-3.5" />
-                    Activity Trail
-                    <span className="ml-1 text-[8px] font-normal text-primary-500">
-                      ({displayActivities.length} comments)
-                    </span>
-                  </h2>
-                </div>
+                <h2 className="text-xs font-semibold text-primary-800 flex items-center gap-1.5">
+                  <FiMessageSquare className="w-3.5 h-3.5" /> Activity Trail
+                  <span className="ml-1 text-[8px] font-normal text-primary-500">
+                    ({displayActivities.length} comments)
+                  </span>
+                </h2>
               </div>
 
               {/* Loading State */}
@@ -465,62 +437,41 @@ export const QSDashboard: React.FC = () => {
                 </div>
               )}
 
-              {/* Activity Items - Scrollable with fixed height */}
+              {/* Activity Items */}
               {!isLoading && !isLoadingComments && (
-                <div className="divide-y divide-accent-100 overflow-y-auto flex-grow" style={{ maxHeight: '380px' }}>
+                <div className="divide-y divide-accent-100 overflow-y-auto flex-grow" style={{ maxHeight: '400px' }}>
                   {displayActivities.length > 0 ? (
                     displayActivities.map((item) => (
-                      <div
-                        key={item.id}
-                        onClick={() => navigate(`/qs/reports/${item.reportId}/review`)}
+                      <div 
+                        key={item.id} 
+                        onClick={() => navigate(`/qs/reports/${item.reportId}/review`)} 
                         className="p-3 hover:bg-primary-50 transition-colors cursor-pointer group"
                       >
                         <div className="flex items-start justify-between gap-2">
                           {/* Left side - Icon and Content */}
-                          <div className="flex items-start gap-2 flex-1 min-w-0">
-                            {/* Icon */}
+                          <div className="flex gap-2 min-w-0 flex-1">
                             <div className="flex-shrink-0 mt-0.5">
                               {getActivityIcon(item.type)}
                             </div>
-                            
-                            {/* Content */}
-                            <div className="flex-1 min-w-0">
-                              {/* Report Number and Customer Name */}
-                              <div className="flex items-center gap-1.5 mb-1">
-                                <span className="text-[11px] font-semibold text-primary-800">
-                                  {item.reportNo}
-                                </span>
-                                <span className="text-[9px] text-primary-500">•</span>
-                                <span className="text-[10px] text-primary-600">
-                                  {item.customerName}
+                            <div className="min-w-0 flex-1">
+                              <div className="text-[11px] font-semibold text-primary-800">
+                                {item.reportNo} 
+                                <span className="font-normal text-primary-500">
+                                   - {item.customerName}  • {item.projectName} 
                                 </span>
                               </div>
-                              
-                              {/* Actual Comment */}
-                              {item.comment && (
-                                <div className="text-[10px] text-primary-700 bg-primary-50 p-2 rounded border-l-2 border-accent-400">
-                                  "{item.comment}"
-                                </div>
-                              )}
+                              <div className="text-[10px] text-primary-700 bg-primary-50 p-2 mt-1 rounded border-l-2 border-accent-400">
+                                "{item.comment}"
+                              </div>
                             </div>
                           </div>
-
-                          {/* Right side - Date and RM Name (far right) */}
-                          <div className="flex flex-col items-end gap-0.5 flex-shrink-0 min-w-[80px]">
-                            <span className="text-[8px] text-primary-500 whitespace-nowrap">
-                              {formatDate(item.timestamp)}
-                            </span>
-                           
-                              <span className="text-[8px] text-primary-500 flex items-center gap-0.5 whitespace-nowrap">
-                                <FiUser className="w-2.5 h-2.5" />
-                                {item.rmName}
-                              </span>
-                            
-                          </div>
-
-                          {/* Arrow on hover */}
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                            <FiArrowRight className="w-3 h-3 text-primary-500" />
+                          
+                          {/* Right side - Date and RM Name */}
+                          <div className="text-right text-[8px] text-primary-500 whitespace-nowrap flex-shrink-0 ml-4">
+                            {formatDate(item.timestamp)}
+                            <div className="flex items-center gap-0.5 justify-end mt-1">
+                              <FiUser className="w-2.5 h-2.5" /> {item.rmName}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -539,7 +490,7 @@ export const QSDashboard: React.FC = () => {
                 </div>
               )}
 
-              {/* Footer with view all link - Fixed height */}
+              {/* Footer with view all link */}
               {displayActivities.length > 0 && (
                 <div className="px-3 py-2 border-t border-accent-200 bg-primary-50 flex-shrink-0">
                   <button
@@ -557,93 +508,67 @@ export const QSDashboard: React.FC = () => {
           {/* Right Column - Scheduled Visits (30%) */}
           <div className="lg:col-span-4">
             <div className="border border-accent-200 rounded-lg bg-white overflow-hidden h-full flex flex-col">
-              {/* Header - Fixed height */}
               <div className="px-3 py-2 border-b border-accent-200 bg-primary-50 flex-shrink-0">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xs font-semibold text-primary-800 flex items-center gap-1.5">
-                    <FiCalendar className="w-3.5 h-3.5" />
-                    Scheduled Visits
-                    <span className="ml-1 text-[8px] font-normal text-primary-500">
-                      ({scheduledVisits.length})
-                    </span>
-                  </h2>
-                </div>
+                <h2 className="text-xs font-semibold text-primary-800 flex items-center gap-1.5">
+                  <FiCalendar className="w-3.5 h-3.5" /> Scheduled Visits
+                  <span className="ml-1 text-[8px] font-normal text-primary-500">
+                    ({scheduledVisits.length})
+                  </span>
+                </h2>
               </div>
 
-              {/* Calendar Preview - Fixed height section */}
+              {/* Calendar Grid - FIXED with Sunday first */}
               <div className="p-3 border-b border-accent-100 flex-shrink-0">
                 <div className="text-[9px] font-medium text-primary-800 mb-2">
                   {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                 </div>
                 <div className="grid grid-cols-7 gap-1 text-center text-[7px] mb-1">
-                  {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map(day => (
+                  {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(day => (
                     <div key={day} className="text-primary-400 font-medium">{day}</div>
                   ))}
                 </div>
                 <div className="grid grid-cols-7 gap-1 text-center text-[8px]">
-                  {Array.from({ length: 35 }, (_, i) => {
-                    const day = i + 1
-                    const isToday = day === new Date().getDate()
-                    const hasVisit = scheduledVisits.some(v => 
-                      new Date(v.scheduledDate).getDate() === day
-                    )
-                    
-                    return (
-                      <div
-                        key={i}
-                        className={`
-                          p-1 rounded-full relative
-                          ${isToday ? 'bg-primary-600 text-white font-medium' : 'text-primary-700'}
-                          ${hasVisit && !isToday ? 'bg-accent-100 text-primary-800' : ''}
-                        `}
-                      >
-                        {day}
-                        {hasVisit && !isToday && (
-                          <span className="absolute -top-0.5 -right-0.5 w-1 h-1 bg-accent-500 rounded-full"></span>
-                        )}
-                      </div>
-                    )
-                  })}
+                  {calendarDays.map((dayData, index) => (
+                    <div
+                      key={index}
+                      className={`
+                        p-1 rounded-full relative
+                        ${dayData.isToday ? 'bg-primary-600 text-white font-medium' : 
+                          dayData.isCurrentMonth ? 'text-primary-700' : 'text-primary-300'}
+                        ${dayData.hasVisit && !dayData.isToday && dayData.isCurrentMonth ? 
+                          'bg-accent-100 text-primary-800' : ''}
+                      `}
+                    >
+                      {dayData.day}
+                      {dayData.hasVisit && dayData.isCurrentMonth && (
+                        <span className={`absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full ${dayData.isToday ? 'bg-white' : 'bg-accent-500'}`}></span>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              {/* Upcoming Visits List - Scrollable with fixed height */}
+              {/* Visits List */}
               <div className="divide-y divide-accent-100 overflow-y-auto flex-grow" style={{ maxHeight: '220px' }}>
                 {scheduledVisits.length > 0 ? (
                   scheduledVisits.map((visit) => (
-                    <div
-                      key={visit.id}
+                    <div 
+                      key={visit.id} 
                       onClick={() => navigate(`/qs/reports/${visit.reportId}/review`)}
                       className="p-3 hover:bg-primary-50 transition-colors cursor-pointer group"
                     >
                       <div className="flex items-start gap-2">
-                        {/* Icon */}
-                        <div className="flex-shrink-0 mt-0.5">
-                          <FiMapPin className="w-3.5 h-3.5 text-accent-500" />
-                        </div>
-                        
-                        {/* Content */}
+                        <FiMapPin className="w-3.5 h-3.5 text-accent-500 flex-shrink-0 mt-0.5" />
                         <div className="flex-1 min-w-0">
-                          {/* Report Number and Customer */}
                           <div className="flex items-center gap-1.5 mb-1">
-                            <span className="text-[10px] font-semibold text-primary-800">
-                              {visit.reportNo}
-                            </span>
+                            <span className="text-[10px] font-semibold text-primary-800">{visit.reportNo}</span>
                             <span className="text-[8px] text-primary-500">•</span>
-                            <span className="text-[9px] text-primary-600 truncate">
-                              {visit.customerName}
-                            </span>
+                            <span className="text-[9px] text-primary-600 truncate">{visit.customerName}</span>
                           </div>
-                          
-                          {/* Site Address */}
                           <div className="flex items-start gap-1 mb-1">
                             <FiHome className="w-2.5 h-2.5 text-primary-400 flex-shrink-0 mt-0.5" />
-                            <span className="text-[8px] text-primary-500 line-clamp-1">
-                              {visit.siteAddress}
-                            </span>
+                            <span className="text-[8px] text-primary-500 line-clamp-1">{visit.siteAddress}</span>
                           </div>
-                          
-                          {/* Date/Time and RM */}
                           <div className="flex items-center gap-2 mt-1">
                             <span className="text-[7px] text-primary-500 flex items-center gap-0.5">
                               <FiCalendar className="w-2 h-2" />
@@ -655,9 +580,7 @@ export const QSDashboard: React.FC = () => {
                             </span>
                           </div>
                         </div>
-                        
-                        {/* Arrow on hover */}
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                           <FiArrowRight className="w-3 h-3 text-primary-500" />
                         </div>
                       </div>
@@ -676,7 +599,7 @@ export const QSDashboard: React.FC = () => {
                 )}
               </div>
 
-              {/* Footer with schedule button - Fixed height */}
+              {/* Footer with schedule button */}
               <div className="px-3 py-2 border-t border-accent-200 bg-primary-50 flex-shrink-0">
                 <button
                   onClick={() => navigate('/qs/site-visits/schedule')}
