@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { qsApi } from '@/services/api/qsApi'
 import axiosInstance from '@/services/api/axiosConfig'
 import { SiteVisitReport, Comment } from '@/types/report.types'
+import { REPORT_STATUS, STATUS_CONFIG } from '@/constants/reportStatus'
 import { Button } from '@/components/common/Button'
 import { LoadingSpinner } from '@/components/common/LoadingSpinner'
 import {
@@ -49,6 +50,15 @@ interface ReviewState {
   reworkComment: string
   approveComment: string
   newComment: string
+  showScheduleVisitModal: boolean
+  showConfirmVisitModal: boolean
+  scheduleVisitDate: string
+  scheduleVisitNotes: string
+  confirmVisitFindings: string
+  scheduledVisitData: {
+    date: string
+    notes: string
+  } | null
 }
 
 // Tab configuration - EXACTLY matching RM steps
@@ -73,6 +83,21 @@ const transformComment = (comment: any): Comment => ({
   createdAt: comment.createdAt || comment.CreatedAt || new Date().toISOString()
 })
 
+// Helper function to get value with case-insensitive access
+const getValue = (obj: any, key: string): any => {
+  if (!obj) return undefined
+
+  if (obj[key] !== undefined && obj[key] !== null) return obj[key]
+
+  const pascalKey = key.charAt(0).toUpperCase() + key.slice(1)
+  if (obj[pascalKey] !== undefined && obj[pascalKey] !== null) return obj[pascalKey]
+
+  const upperKey = key.toUpperCase()
+  if (obj[upperKey] !== undefined && obj[upperKey] !== null) return obj[upperKey]
+
+  return undefined
+}
+
 export const QSReviewDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -93,6 +118,12 @@ export const QSReviewDetailPage: React.FC = () => {
     reworkComment: '',
     approveComment: '',
     newComment: '',
+    showScheduleVisitModal: false,
+    showConfirmVisitModal: false,
+    scheduleVisitDate: '',
+    scheduleVisitNotes: '',
+    confirmVisitFindings: '',
+    scheduledVisitData: null
   })
 
   const commentsContainerRef = useRef<HTMLDivElement>(null)
@@ -128,6 +159,15 @@ export const QSReviewDetailPage: React.FC = () => {
     }
   }, [state.comments])
 
+  // Check if we should open confirm modal automatically (coming from site visits page)
+  useEffect(() => {
+    const shouldOpenConfirm = sessionStorage.getItem('openConfirmModal')
+    if (shouldOpenConfirm === 'true' && state.report?.status === REPORT_STATUS.SITE_VISIT_SCHEDULED) {
+      setState(prev => ({ ...prev, showConfirmVisitModal: true }))
+      sessionStorage.removeItem('openConfirmModal')
+    }
+  }, [state.report])
+
   const loadReportData = async () => {
     if (!id) return
 
@@ -137,11 +177,19 @@ export const QSReviewDetailPage: React.FC = () => {
       const response = await qsApi.getReportDetails(id!)
       const reportData = response.data
 
+      // Load scheduled visit data if it exists
+      const scheduledDate = getValue(reportData, 'siteVisitScheduledDate')
+      const scheduledNotes = getValue(reportData, 'siteVisitNotes')
+
       await loadComments()
 
       setState(prev => ({
         ...prev,
         report: reportData,
+        scheduledVisitData: scheduledDate ? {
+          date: scheduledDate,
+          notes: scheduledNotes || ''
+        } : null,
         isLoading: false
       }))
 
@@ -154,15 +202,15 @@ export const QSReviewDetailPage: React.FC = () => {
   const loadComments = async () => {
     try {
       const commentsResponse = await axiosInstance.get(`/qs/reviews/${id}/comments`)
-      
+
       if (commentsResponse.data && Array.isArray(commentsResponse.data)) {
         const mappedComments = commentsResponse.data.map(transformComment)
-        
+
         // Sort newest first
-        mappedComments.sort((a, b) => 
+        mappedComments.sort((a, b) =>
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         )
-        
+
         setState(prev => ({
           ...prev,
           comments: mappedComments
@@ -212,7 +260,10 @@ export const QSReviewDetailPage: React.FC = () => {
     try {
       await qsApi.requestRevision(id, state.reworkComment, [])
       toast.success('Report returned for rework')
-      navigate('/qs/reviews/progress')
+
+      // Navigate back to the appropriate page
+      const returnPath = sessionStorage.getItem('qsReturnPath') || '/qs/reviews/progress'
+      navigate(returnPath)
     } catch (error) {
       toast.error('Failed to process rework request')
     } finally {
@@ -227,9 +278,92 @@ export const QSReviewDetailPage: React.FC = () => {
     try {
       await qsApi.approveReport(id, state.approveComment)
       toast.success('Report approved successfully')
-      navigate('/qs/reviews/completed')
+
+      // Navigate back to the appropriate page
+      const returnPath = sessionStorage.getItem('qsReturnPath') || '/qs/reviews/completed'
+      navigate(returnPath)
     } catch (error) {
       toast.error('Failed to approve report')
+    } finally {
+      setState(prev => ({ ...prev, isSubmitting: false }))
+    }
+  }
+
+  const handleScheduleSiteVisit = async () => {
+    if (!id) return
+    if (!state.scheduleVisitDate) {
+      toast.error('Please select a date for the site visit')
+      return
+    }
+
+    setState(prev => ({ ...prev, isSubmitting: true }))
+    try {
+      console.log('Scheduling site visit for report:', id);
+      console.log('Payload:', {
+        scheduledDate: state.scheduleVisitDate,
+        notes: state.scheduleVisitNotes
+      });
+
+      // IMPORTANT: Use the exact URL from Swagger
+      const response = await axiosInstance.post(`/qs/reviews/${id}/schedule-site-visit`, {
+        scheduledDate: state.scheduleVisitDate,
+        notes: state.scheduleVisitNotes
+      });
+
+      console.log('Response:', response.data);
+
+      toast.success('Site visit scheduled successfully')
+
+      setState(prev => ({
+        ...prev,
+        showScheduleVisitModal: false,
+        scheduleVisitDate: '',
+        scheduleVisitNotes: '',
+        scheduledVisitData: {
+          date: prev.scheduleVisitDate,
+          notes: prev.scheduleVisitNotes
+        }
+      }))
+
+      await loadReportData()
+    } catch (error: any) {
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        url: error.config?.url
+      });
+
+      toast.error(error.response?.data?.message || 'Failed to schedule site visit')
+    } finally {
+      setState(prev => ({ ...prev, isSubmitting: false }))
+    }
+  }
+
+  const handleConfirmSiteVisit = async () => {
+    if (!id) return
+    if (!state.confirmVisitFindings.trim()) {
+      toast.error('Please enter your site visit findings')
+      return
+    }
+
+    setState(prev => ({ ...prev, isSubmitting: true }))
+    try {
+      await axiosInstance.post(`/qs/reviews/${id}/confirm-site-visit`, {
+        findings: state.confirmVisitFindings
+      })
+
+      toast.success('Site visit confirmed')
+      setState(prev => ({
+        ...prev,
+        showConfirmVisitModal: false,
+        confirmVisitFindings: ''
+      }))
+
+      // Refresh report data
+      await loadReportData()
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to confirm site visit')
     } finally {
       setState(prev => ({ ...prev, isSubmitting: false }))
     }
@@ -286,23 +420,6 @@ export const QSReviewDetailPage: React.FC = () => {
           <div>
             <p className="text-[9px] text-[#677D6A]">RM</p>
             <p className="text-xs text-[#40534C] mt-0.5">{report.rmName || '—'}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="border-t border-[#D6BD98]/10"></div>
-
-      {/* Customer Type & Profile */}
-      <div>
-        <h3 className="text-[10px] font-bold text-[#1A3636] uppercase tracking-wider mb-2">Customer Profile</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <p className="text-[9px] text-[#677D6A]">Customer Type</p>
-            <p className="text-xs text-[#40534C] mt-0.5">{form?.customerType || '—'}</p>
-          </div>
-          <div>
-            <p className="text-[9px] text-[#677D6A]">Brief Profile</p>
-            <p className="text-xs text-[#40534C] mt-0.5">{form?.briefProfile || '—'}</p>
           </div>
         </div>
       </div>
@@ -389,7 +506,7 @@ export const QSReviewDetailPage: React.FC = () => {
 
       <div className="border-t border-[#D6BD98]/10"></div>
 
-      {/* UPDATED: Drawdown Funds with multiple drawdowns */}
+      {/* Drawdown Funds */}
       <div>
         <h3 className="text-[10px] font-bold text-[#1A3636] uppercase tracking-wider mb-2 flex items-center gap-1">
           <FiList className="w-3 h-3" />
@@ -519,11 +636,10 @@ export const QSReviewDetailPage: React.FC = () => {
                 <div key={doc.key} className="py-1.5 border-b border-[#D6BD98]/10 last:border-0">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-[#40534C]">{doc.label}</span>
-                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-medium ${
-                      status === 'Yes' ? 'bg-emerald-100 text-emerald-700' :
+                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-medium ${status === 'Yes' ? 'bg-emerald-100 text-emerald-700' :
                       status === 'No' ? 'bg-amber-100 text-amber-700' :
-                      'bg-gray-100 text-gray-700'
-                    }`}>
+                        'bg-gray-100 text-gray-700'
+                      }`}>
                       {status || '—'}
                     </span>
                   </div>
@@ -641,7 +757,10 @@ export const QSReviewDetailPage: React.FC = () => {
           <Button
             variant="primary"
             size="sm"
-            onClick={() => navigate('/qs/reviews')}
+            onClick={() => {
+              const returnPath = sessionStorage.getItem('qsReturnPath') || '/qs/reviews'
+              navigate(returnPath)
+            }}
             className="mt-3 text-xs"
           >
             Back to Reviews
@@ -656,13 +775,52 @@ export const QSReviewDetailPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-white">
+      {/* Site Visit Scheduled Banner - Updated */}
+      {state.scheduledVisitData && (
+        <div className="bg-accent-100 border-b border-accent-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
+            <div className="flex items-center gap-2">
+              <FiMapPin className="w-3 h-3 text-primary-600" />
+              <span className="text-[9px] text-primary-800 font-medium">
+                Site Visit Scheduled: {formatNairobiDateTime(state.scheduledVisitData.date)}
+              </span>
+              {state.scheduledVisitData.notes && (
+                <span className="text-[8px] text-primary-600">
+                  Notes: {state.scheduledVisitData.notes}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Site Visit Findings Banner - Updated */}
+      {getValue(report, 'siteVisitFindings') && (
+        <div className="bg-primary-50 border-b border-primary-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
+            <div className="flex items-center gap-2">
+              <FiCheckCircle className="w-3 h-3 text-primary-600" />
+              <span className="text-[9px] text-primary-800 font-medium">
+                Site Visit Completed
+              </span>
+              <span className="text-[8px] text-primary-600 truncate">
+                {getValue(report, 'siteVisitFindings')}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="sticky top-0 z-20 bg-white border-b border-[#D6BD98]/10 shadow-sm">
         <div className="px-3 lg:px-4 py-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <button
-                onClick={() => navigate('/qs/reviews')}
+                onClick={() => {
+                  const returnPath = sessionStorage.getItem('qsReturnPath') || '/qs/reviews'
+                  navigate(returnPath)
+                }}
                 className="p-1 hover:bg-[#D6BD98]/10 rounded transition-colors"
               >
                 <FiArrowLeft className="w-4 h-4 text-[#40534C]" />
@@ -679,26 +837,69 @@ export const QSReviewDetailPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Action Buttons */}
+            {/* Action Buttons - Updated with theme colors */}
             <div className="flex items-center gap-1.5">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setState(prev => ({ ...prev, showReworkModal: true }))}
-                className="border-amber-500 text-amber-600 hover:bg-amber-50 text-[9px] h-6 px-2"
-              >
-                <FiXCircle className="w-2.5 h-2.5 mr-1" />
-                Rework
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => setState(prev => ({ ...prev, showApproveModal: true }))}
-                className="bg-emerald-600 hover:bg-emerald-700 text-[9px] h-6 px-2"
-              >
-                <FiCheckCircle className="w-2.5 h-2.5 mr-1" />
-                Approve
-              </Button>
+              {report.status === REPORT_STATUS.SITE_VISIT_SCHEDULED ? (
+                <>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setState(prev => ({ ...prev, showConfirmVisitModal: true }))}
+                    className="bg-primary-600 hover:bg-primary-700 text-white text-[9px] h-6 px-2"
+                  >
+                    <FiCheckCircle className="w-2.5 h-2.5 mr-1" />
+                    Confirm Visit
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setState(prev => ({ ...prev, showReworkModal: true }))}
+                    className="border-accent-500 text-primary-600 hover:bg-accent-100 text-[9px] h-6 px-2"
+                  >
+                    <FiXCircle className="w-2.5 h-2.5 mr-1" />
+                    Rework
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setState(prev => ({ ...prev, showApproveModal: true }))}
+                    className="bg-primary-600 hover:bg-primary-700 text-white text-[9px] h-6 px-2"
+                  >
+                    <FiCheckCircle className="w-2.5 h-2.5 mr-1" />
+                    Approve
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setState(prev => ({ ...prev, showScheduleVisitModal: true }))}
+                    className="border-accent-500 text-primary-600 hover:bg-accent-100 text-[9px] h-6 px-2"
+                  >
+                    <FiMapPin className="w-2.5 h-2.5 mr-1" />
+                    Schedule Visit
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setState(prev => ({ ...prev, showReworkModal: true }))}
+                    className="border-accent-500 text-primary-600 hover:bg-accent-100 text-[9px] h-6 px-2"
+                  >
+                    <FiXCircle className="w-2.5 h-2.5 mr-1" />
+                    Rework
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setState(prev => ({ ...prev, showApproveModal: true }))}
+                    className="bg-primary-600 hover:bg-primary-700 text-white text-[9px] h-6 px-2"
+                  >
+                    <FiCheckCircle className="w-2.5 h-2.5 mr-1" />
+                    Approve
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -772,19 +973,17 @@ export const QSReviewDetailPage: React.FC = () => {
                   {state.comments.map((comment, index) => {
                     const isCurrentUser = comment.userId === user?.id
                     const isLatest = index === 0
-                    
+
                     return (
-                      <div 
+                      <div
                         key={comment.id || `comment-${index}`}
-                        className={`px-3 py-2 hover:bg-[#F5F7F4]/30 transition-colors ${
-                          isLatest ? 'bg-[#F5F7F4]/50' : ''
-                        }`}
+                        className={`px-3 py-2 hover:bg-[#F5F7F4]/30 transition-colors ${isLatest ? 'bg-[#F5F7F4]/50' : ''
+                          }`}
                       >
                         <div className="flex items-center justify-between mb-1">
                           <div className="flex items-center gap-1.5">
-                            <span className={`text-[9px] font-bold ${
-                              isCurrentUser ? 'text-[#1A3636]' : 'text-[#40534C]'
-                            }`}>
+                            <span className={`text-[9px] font-bold ${isCurrentUser ? 'text-[#1A3636]' : 'text-[#40534C]'
+                              }`}>
                               {comment.userName}
                             </span>
                             <span className="text-[7px] font-medium text-[#677D6A] bg-white px-1 py-0.5 rounded border border-[#D6BD98]/10">
@@ -803,7 +1002,7 @@ export const QSReviewDetailPage: React.FC = () => {
                             </span>
                           </div>
                         </div>
-                        
+
                         <p className="text-[9px] text-[#40534C] leading-relaxed">
                           {comment.text}
                         </p>
@@ -843,16 +1042,129 @@ export const QSReviewDetailPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Rework Modal */}
+      {/* Schedule Site Visit Modal - Updated to match system theme */}
+      {state.showScheduleVisitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30">
+          <div className="bg-white rounded max-w-sm w-full p-4">
+            <h3 className="text-sm font-bold text-primary-800 mb-3">Schedule Site Visit</h3>
+
+            <div className="mb-3">
+              <label className="block text-[9px] font-medium text-primary-500 mb-1">
+                Visit Date & Time *
+              </label>
+              <input
+                type="datetime-local"
+                value={state.scheduleVisitDate}
+                onChange={(e) => setState(prev => ({ ...prev, scheduleVisitDate: e.target.value }))}
+                className="w-full px-2 py-1.5 text-xs border border-accent-300 rounded focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-200"
+                min={new Date().toISOString().slice(0, 16)}
+                required
+              />
+            </div>
+
+            <div className="mb-3">
+              <label className="block text-[9px] font-medium text-primary-500 mb-1">
+                Notes / Special Instructions
+              </label>
+              <textarea
+                value={state.scheduleVisitNotes}
+                onChange={(e) => setState(prev => ({ ...prev, scheduleVisitNotes: e.target.value }))}
+                rows={3}
+                className="w-full px-2 py-1.5 text-xs border border-accent-300 rounded focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-200"
+                placeholder="Add any notes about the site visit..."
+              />
+            </div>
+
+            <div className="bg-accent-100 p-2 rounded mb-3">
+              <p className="text-[8px] text-primary-600 flex items-start gap-1">
+                <FiInfo className="w-2.5 h-2.5 mt-0.5 flex-shrink-0" />
+                <span>This will mark the report for site visit. You can confirm the visit after completion.</span>
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleScheduleSiteVisit}
+                disabled={!state.scheduleVisitDate || state.isSubmitting}
+                className="flex-1 bg-primary-600 hover:bg-primary-700 text-white text-xs py-1"
+              >
+                {state.isSubmitting ? 'Scheduling...' : 'Schedule Visit'}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setState(prev => ({ ...prev, showScheduleVisitModal: false, scheduleVisitDate: '', scheduleVisitNotes: '' }))}
+                className="flex-1 border border-accent-400 text-primary-600 hover:bg-accent-100 text-xs py-1"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Site Visit Modal - Updated to match system theme */}
+      {state.showConfirmVisitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30">
+          <div className="bg-white rounded max-w-sm w-full p-4">
+            <h3 className="text-sm font-bold text-primary-800 mb-3">Confirm Site Visit</h3>
+
+            <div className="mb-3">
+              <label className="block text-[9px] font-medium text-primary-500 mb-1">
+                Site Visit Findings *
+              </label>
+              <textarea
+                value={state.confirmVisitFindings}
+                onChange={(e) => setState(prev => ({ ...prev, confirmVisitFindings: e.target.value }))}
+                rows={5}
+                className="w-full px-2 py-1.5 text-xs border border-accent-300 rounded focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-200"
+                placeholder="Describe what you observed during the site visit. Does it match the report? Any issues found?"
+                autoFocus
+              />
+            </div>
+
+            <div className="bg-accent-100 p-2 rounded mb-3">
+              <p className="text-[8px] text-primary-600 flex items-start gap-1">
+                <FiCheckCircle className="w-2.5 h-2.5 mt-0.5 flex-shrink-0" />
+                <span>After confirming, you can either approve the report or request rework based on your findings.</span>
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleConfirmSiteVisit}
+                disabled={!state.confirmVisitFindings.trim() || state.isSubmitting}
+                className="flex-1 bg-primary-600 hover:bg-primary-700 text-white text-xs py-1"
+              >
+                {state.isSubmitting ? 'Confirming...' : 'Confirm Visit'}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setState(prev => ({ ...prev, showConfirmVisitModal: false, confirmVisitFindings: '' }))}
+                className="flex-1 border border-accent-400 text-primary-600 hover:bg-accent-100 text-xs py-1"
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rework Modal - Updated to match theme */}
       {state.showReworkModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30">
           <div className="bg-white rounded max-w-sm w-full p-4">
-            <h3 className="text-sm font-bold text-[#1A3636] mb-3">Return for Rework</h3>
+            <h3 className="text-sm font-bold text-primary-800 mb-3">Return for Rework</h3>
             <textarea
               value={state.reworkComment}
               onChange={(e) => setState(prev => ({ ...prev, reworkComment: e.target.value }))}
               rows={3}
-              className="w-full px-2 py-1.5 text-xs border border-[#D6BD98]/20 rounded focus:outline-none focus:border-[#1A3636] mb-3"
+              className="w-full px-2 py-1.5 text-xs border border-accent-300 rounded focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-200 mb-3"
               placeholder="Explain what needs to be changed..."
               autoFocus
             />
@@ -862,7 +1174,7 @@ export const QSReviewDetailPage: React.FC = () => {
                 size="sm"
                 onClick={handleRework}
                 disabled={!state.reworkComment.trim() || state.isSubmitting}
-                className="flex-1 bg-amber-600 hover:bg-amber-700 text-xs py-1"
+                className="flex-1 bg-primary-600 hover:bg-primary-700 text-white text-xs py-1"
               >
                 {state.isSubmitting ? '...' : 'Rework'}
               </Button>
@@ -870,7 +1182,7 @@ export const QSReviewDetailPage: React.FC = () => {
                 variant="outline"
                 size="sm"
                 onClick={() => setState(prev => ({ ...prev, showReworkModal: false, reworkComment: '' }))}
-                className="flex-1 text-xs py-1"
+                className="flex-1 border border-accent-400 text-primary-600 hover:bg-accent-100 text-xs py-1"
               >
                 Cancel
               </Button>
@@ -879,16 +1191,16 @@ export const QSReviewDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* Approve Modal */}
+      {/* Approve Modal - Updated to match theme */}
       {state.showApproveModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30">
           <div className="bg-white rounded max-w-sm w-full p-4">
-            <h3 className="text-sm font-bold text-[#1A3636] mb-3">Approve Report</h3>
+            <h3 className="text-sm font-bold text-primary-800 mb-3">Approve Report</h3>
             <textarea
               value={state.approveComment}
               onChange={(e) => setState(prev => ({ ...prev, approveComment: e.target.value }))}
               rows={2}
-              className="w-full px-2 py-1.5 text-xs border border-[#D6BD98]/20 rounded focus:outline-none focus:border-[#1A3636] mb-3"
+              className="w-full px-2 py-1.5 text-xs border border-accent-300 rounded focus:outline-none focus:border-primary-600 focus:ring-1 focus:ring-primary-200 mb-3"
               placeholder="Add notes (optional)"
             />
             <div className="flex gap-2">
@@ -897,7 +1209,7 @@ export const QSReviewDetailPage: React.FC = () => {
                 size="sm"
                 onClick={handleApprove}
                 disabled={state.isSubmitting}
-                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-xs py-1"
+                className="flex-1 bg-primary-600 hover:bg-primary-700 text-white text-xs py-1"
               >
                 {state.isSubmitting ? '...' : 'Approve'}
               </Button>
@@ -905,7 +1217,7 @@ export const QSReviewDetailPage: React.FC = () => {
                 variant="outline"
                 size="sm"
                 onClick={() => setState(prev => ({ ...prev, showApproveModal: false, approveComment: '' }))}
-                className="flex-1 text-xs py-1"
+                className="flex-1 border border-accent-400 text-primary-600 hover:bg-accent-100 text-xs py-1"
               >
                 Cancel
               </Button>

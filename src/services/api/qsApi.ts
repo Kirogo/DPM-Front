@@ -98,5 +98,31 @@ export const qsApi = {
       console.log('Audit trail endpoint not available yet')
       return { data: [] }
     }
-  }
+  },
+
+   // Schedule a site visit
+  scheduleSiteVisit: async (reportId: string, data: { scheduledDate: string; notes: string }) => {
+    const response = await axiosInstance.post(`/qs/reviews/${reportId}/schedule-site-visit`, data)
+    return response.data
+  },
+
+  // Confirm a site visit with findings
+  confirmSiteVisit: async (reportId: string, findings: string) => {
+    const response = await axiosInstance.post(`/qs/reviews/${reportId}/confirm-site-visit`, { findings })
+    return response.data
+  },
+
+  // Get all scheduled site visits
+  getSiteVisits: async (page = 1, pageSize = 15) => {
+    const response = await axiosInstance.get('/qs/reviews/site-visits', {
+      params: { page, pageSize }
+    })
+    return response.data
+  },
+
+  // Get site visits statistics
+  getSiteVisitsStats: async () => {
+    const response = await axiosInstance.get('/qs/reviews/site-visits/stats')
+    return response.data
+}
 }
