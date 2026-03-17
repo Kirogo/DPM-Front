@@ -40,6 +40,7 @@ import {
 } from 'lucide-react'
 // IMPORT THE LOGO DIRECTLY
 import ncbaLogo from '@/assets/NCBALogo.png'
+import { REPORT_STATUS } from '@/utils/constants/reportStatus'
 
 // Helper to convert image to base64
 const getBase64ImageFromUrl = async (imageUrl: string): Promise<string> => {
@@ -215,7 +216,7 @@ const transformComment = (comment: any): Comment => ({
 // Function to extract status from checklist
 const extractStatus = (checklist: any): string => {
   if (!checklist) return 'pending'
-  
+
   const possibleStatusLocations = [
     checklist.status,
     checklist.Status,
@@ -229,13 +230,13 @@ const extractStatus = (checklist: any): string => {
     checklist._doc?.status,
     checklist._doc?.Status
   ]
-  
+
   for (const status of possibleStatusLocations) {
     if (status !== undefined && status !== null) {
       return status.toString().toLowerCase()
     }
   }
-  
+
   return 'pending'
 }
 
@@ -248,7 +249,8 @@ const isReadOnlyStatus = (status: string): boolean => {
          lowerStatus === 'pendingqsreview' ||
          lowerStatus === 'completed' ||
          lowerStatus === 'under_review' ||
-         lowerStatus === 'underreview'
+         lowerStatus === 'underreview' ||
+         lowerStatus === REPORT_STATUS.SITE_VISIT_SCHEDULED  // Add this line
 }
 
 // Function to check if report can be deleted (only Pending and Draft)
@@ -293,7 +295,7 @@ export const RMChecklistDetailPage: React.FC = () => {
         console.error('Failed to load logo:', error)
       }
     }
-    
+
     loadLogo()
   }, [])
 
@@ -397,7 +399,7 @@ export const RMChecklistDetailPage: React.FC = () => {
   useEffect(() => {
     if (checklist && !isLoading && !redirectAttempted) {
       const status = reportStatus
-      
+
       if (isReadOnlyStatus(status)) {
         toast.loading('This report is in read-only mode', { duration: 2000 })
         setRedirectAttempted(true)
@@ -571,7 +573,7 @@ export const RMChecklistDetailPage: React.FC = () => {
 
       // Create a deep copy of formData
       const pdfData = JSON.parse(JSON.stringify(formData))
-      
+
       // Ensure all required arrays exist
       pdfData.progressPhotosPage3 = pdfData.progressPhotosPage3 || []
       pdfData.materialsOnSitePhotos = pdfData.materialsOnSitePhotos || []
@@ -649,10 +651,10 @@ export const RMChecklistDetailPage: React.FC = () => {
   };
 
   const isApproved = reportStatus === 'approved'
-  const isSubmitted = reportStatus === 'submitted' || 
-                     reportStatus === 'pending_qs_review' || 
-                     reportStatus === 'pendingqsreview' ||
-                     reportStatus === 'under_review'
+  const isSubmitted = reportStatus === 'submitted' ||
+    reportStatus === 'pending_qs_review' ||
+    reportStatus === 'pendingqsreview' ||
+    reportStatus === 'under_review'
   const isEditable = !isReadOnlyStatus(reportStatus)
   const showDeleteButton = canDeleteReport(reportStatus) && isEditable
   const isReworkRequired = reportStatus === 'rework';
@@ -795,9 +797,9 @@ export const RMChecklistDetailPage: React.FC = () => {
                   <StatusBadge status={reportStatus} />
                 </div>
                 <p className="text-[9px] text-[#677D6A]">
-                  {isApproved ? 'Approved (Read Only)' : 
-                   isSubmitted ? 'Under QS Review' : 
-                   `Step ${activeStep} of ${steps.length}`}
+                  {isApproved ? 'Approved (Read Only)' :
+                    isSubmitted ? 'Under QS Review' :
+                      `Step ${activeStep} of ${steps.length}`}
                 </p>
               </div>
             </div>
@@ -813,7 +815,7 @@ export const RMChecklistDetailPage: React.FC = () => {
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               )}
-              
+
               {/* PDF Download Button - Available for all statuses */}
               <button
                 onClick={handleDownloadPDF}
@@ -840,11 +842,10 @@ export const RMChecklistDetailPage: React.FC = () => {
                     <button
                       onClick={handleSubmit}
                       disabled={!allComplete || isSubmitting || !isEditable}
-                      className={`px-2 py-1 rounded text-[9px] flex items-center gap-1 ${
-                        allComplete && isEditable
+                      className={`px-2 py-1 rounded text-[9px] flex items-center gap-1 ${allComplete && isEditable
                           ? 'bg-[#1A3636] text-white hover:bg-[#40534C]'
                           : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                      }`}
+                        }`}
                     >
                       <Send className="w-3 h-3" />
                       {isSubmitting ? '...' : 'Submit'}
@@ -862,6 +863,30 @@ export const RMChecklistDetailPage: React.FC = () => {
                 </>
               )}
             </div>
+
+            {/* Site Visit Scheduled Banner */}
+            {reportStatus === REPORT_STATUS.SITE_VISIT_SCHEDULED && (
+              <div className="bg-accent-100 border-b border-accent-200">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-3 h-3 text-accent-600" />
+                    <span className="text-[9px] text-accent-800 font-medium">
+                      Waiting for QS Site Visit
+                    </span>
+                    {getValue(checklist, 'siteVisitScheduledDate') && (
+                      <span className="text-[8px] text-accent-600">
+                        Scheduled: {formatNairobiDateTime(getValue(checklist, 'siteVisitScheduledDate'))}
+                      </span>
+                    )}
+                    {getValue(checklist, 'siteVisitNotes') && (
+                      <span className="text-[8px] text-accent-600 truncate">
+                        Notes: {getValue(checklist, 'siteVisitNotes')}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Progress Steps */}
@@ -881,13 +906,12 @@ export const RMChecklistDetailPage: React.FC = () => {
                           className={`flex flex-col items-center focus:outline-none group flex-1 ${!isEditable ? 'cursor-not-allowed opacity-60' : ''}`}
                         >
                           <div
-                            className={`flex items-center justify-center w-7 h-7 rounded-full transition-all ${
-                              isComplete
+                            className={`flex items-center justify-center w-7 h-7 rounded-full transition-all ${isComplete
                                 ? 'bg-[#677D6A] text-white'
                                 : isActive
                                   ? 'bg-[#1A3636] text-white ring-2 ring-[#D6BD98]/30'
                                   : 'bg-[#F5F7F4] border border-[#D6BD98]/20 text-[#40534C]'
-                            }`}
+                              }`}
                           >
                             {isComplete ? (
                               <CheckCircle2 className="w-3 h-3" />
@@ -895,9 +919,8 @@ export const RMChecklistDetailPage: React.FC = () => {
                               <step.icon className="w-3 h-3" />
                             )}
                           </div>
-                          <span className={`mt-1 text-[7px] font-medium text-center ${
-                            isActive ? 'text-[#1A3636]' : 'text-[#677D6A]'
-                          }`}>
+                          <span className={`mt-1 text-[7px] font-medium text-center ${isActive ? 'text-[#1A3636]' : 'text-[#677D6A]'
+                            }`}>
                             {step.name}
                           </span>
                         </button>
@@ -922,13 +945,12 @@ export const RMChecklistDetailPage: React.FC = () => {
                           className={`flex items-center focus:outline-none group ${!isEditable ? 'cursor-not-allowed opacity-60' : ''}`}
                         >
                           <div
-                            className={`flex items-center justify-center w-6 h-6 rounded-full transition-all ${
-                              isComplete
+                            className={`flex items-center justify-center w-6 h-6 rounded-full transition-all ${isComplete
                                 ? 'bg-[#677D6A] text-white'
                                 : isActive
                                   ? 'bg-[#1A3636] text-white ring-2 ring-[#D6BD98]/30'
                                   : 'bg-[#F5F7F4] border border-[#D6BD98]/20 text-[#40534C]'
-                            }`}
+                              }`}
                           >
                             {isComplete ? (
                               <CheckCircle2 className="w-3 h-3" />
@@ -936,18 +958,16 @@ export const RMChecklistDetailPage: React.FC = () => {
                               <step.icon className="w-3 h-3" />
                             )}
                           </div>
-                          <span className={`ml-2 text-[9px] font-medium hidden sm:block ${
-                            isActive ? 'text-[#1A3636]' : 'text-[#677D6A]'
-                          }`}>
+                          <span className={`ml-2 text-[9px] font-medium hidden sm:block ${isActive ? 'text-[#1A3636]' : 'text-[#677D6A]'
+                            }`}>
                             {step.name}
                           </span>
                         </button>
                         {index < steps.length - 1 && (
-                          <div className={`flex-1 h-px mx-2 ${
-                            index < activeStep - 1 || (index < steps.length - 1 && isStepComplete(step.id + 1, formData))
+                          <div className={`flex-1 h-px mx-2 ${index < activeStep - 1 || (index < steps.length - 1 && isStepComplete(step.id + 1, formData))
                               ? 'bg-[#677D6A]/50'
                               : 'bg-[#D6BD98]/30'
-                          }`} />
+                            }`} />
                         )}
                       </React.Fragment>
                     );
@@ -974,11 +994,10 @@ export const RMChecklistDetailPage: React.FC = () => {
                 <button
                   onClick={handleSubmit}
                   disabled={!allComplete || isSubmitting || !isEditable}
-                  className={`flex-1 px-2 py-1 rounded flex items-center justify-center gap-1 text-[8px] ${
-                    allComplete && isEditable
+                  className={`flex-1 px-2 py-1 rounded flex items-center justify-center gap-1 text-[8px] ${allComplete && isEditable
                       ? 'bg-[#1A3636] text-white'
                       : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                  }`}
+                    }`}
                 >
                   <Send className="w-3 h-3" />
                   {isSubmitting ? '...' : 'Submit'}
@@ -1060,13 +1079,12 @@ export const RMChecklistDetailPage: React.FC = () => {
                   <div className="divide-y divide-[#D6BD98]/5">
                     {comments.map((comment, index) => {
                       const isLatest = index === 0
-                      
+
                       return (
-                        <div 
+                        <div
                           key={comment.id || `comment-${index}`}
-                          className={`px-3 py-2 hover:bg-[#F5F7F4]/30 transition-colors ${
-                            isLatest ? 'bg-[#F5F7F4]/50' : ''
-                          }`}
+                          className={`px-3 py-2 hover:bg-[#F5F7F4]/30 transition-colors ${isLatest ? 'bg-[#F5F7F4]/50' : ''
+                            }`}
                         >
                           <div className="flex items-center justify-between mb-1">
                             <div className="flex items-center gap-1.5">
@@ -1089,7 +1107,7 @@ export const RMChecklistDetailPage: React.FC = () => {
                               </span>
                             </div>
                           </div>
-                          
+
                           <p className="text-[8px] text-[#40534C] leading-relaxed font-normal">
                             {comment.text}
                           </p>

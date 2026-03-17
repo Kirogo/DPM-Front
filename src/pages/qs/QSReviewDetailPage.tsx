@@ -777,18 +777,17 @@ export const QSReviewDetailPage: React.FC = () => {
     <div className="min-h-screen bg-white">
       {/* Site Visit Scheduled Banner - Updated */}
       {state.scheduledVisitData && (
-        <div className="bg-accent-100 border-b border-accent-200">
+        <div className="bg-accent-200 border-b border-accent-300">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
             <div className="flex items-center gap-2">
               <FiMapPin className="w-3 h-3 text-primary-600" />
-              <span className="text-[9px] text-primary-800 font-medium">
-                Site Visit Scheduled: {formatNairobiDateTime(state.scheduledVisitData.date)}
-              </span>
-              {state.scheduledVisitData.notes && (
-                <span className="text-[8px] text-primary-600">
+              <span className="text-[9px] text-primary-600 font-medium">
+                Site Visit Scheduled -  {state.scheduledVisitData.notes && (
+                <span className="text-[8px] text-primary-600 font-medium" >
                   Notes: {state.scheduledVisitData.notes}
                 </span>
               )}
+              </span>
             </div>
           </div>
         </div>
@@ -1013,36 +1012,11 @@ export const QSReviewDetailPage: React.FC = () => {
               )}
             </div>
 
-            {/* Comment Input */}
-            <div className="p-3 border-t border-[#D6BD98]/10 bg-white">
-              <div className="flex gap-1.5">
-                <input
-                  type="text"
-                  value={state.newComment}
-                  onChange={(e) => setState(prev => ({ ...prev, newComment: e.target.value }))}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault()
-                      handleAddComment()
-                    }
-                  }}
-                  placeholder="Add comment..."
-                  className="flex-1 px-2 py-1 text-[9px] border border-[#D6BD98]/20 rounded focus:outline-none focus:border-[#1A3636] placeholder:text-[#677D6A]/50"
-                />
-                <button
-                  onClick={handleAddComment}
-                  disabled={!state.newComment.trim() || state.isSubmitting}
-                  className="px-2 py-1 bg-[#1A3636] text-white rounded hover:bg-[#40534C] transition-colors disabled:opacity-40"
-                >
-                  <FiSend className="w-2.5 h-2.5" />
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       </div>
 
-      {/* Schedule Site Visit Modal - Updated to match system theme */}
+      {/* Schedule Site Visit Modal */}
       {state.showScheduleVisitModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30">
           <div className="bg-white rounded max-w-sm w-full p-4">
@@ -1105,7 +1079,7 @@ export const QSReviewDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* Confirm Site Visit Modal - Updated to match system theme */}
+      {/* Confirm Site Visit Modal */}
       {state.showConfirmVisitModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30">
           <div className="bg-white rounded max-w-sm w-full p-4">
@@ -1155,7 +1129,7 @@ export const QSReviewDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* Rework Modal - Updated to match theme */}
+      {/* Rework Modal */}
       {state.showReworkModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30">
           <div className="bg-white rounded max-w-sm w-full p-4">
@@ -1191,7 +1165,7 @@ export const QSReviewDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* Approve Modal - Updated to match theme */}
+      {/* Approve Modal */}
       {state.showApproveModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30">
           <div className="bg-white rounded max-w-sm w-full p-4">

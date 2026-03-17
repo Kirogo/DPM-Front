@@ -1,5 +1,5 @@
 // src/pages/rm/ReportViewPage.tsx
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useGetChecklistByIdQuery } from '@/services/api/checklistsApi'
 import { useAuth } from '@/hooks/useAuth'
@@ -7,13 +7,16 @@ import { LoadingSpinner } from '@/components/common/LoadingSpinner'
 import { generateSiteVisitReportPDF } from '@/utils/pdfGenerator'
 import { Button } from '@/components/common/Button'
 import toast from 'react-hot-toast'
-import { 
-  FiArrowLeft, 
-  FiUser, 
-  FiMapPin, 
-  FiBriefcase, 
-  FiFileText, 
-  FiImage, 
+import { REPORT_STATUS } from '@/constants/reportStatus'
+import axiosInstance from '@/services/api/axiosConfig'
+import { Comment } from '@/types/report.types'
+import {
+  FiArrowLeft,
+  FiUser,
+  FiMapPin,
+  FiBriefcase,
+  FiFileText,
+  FiImage,
   FiAlertCircle,
   FiCheckCircle,
   FiHome,
@@ -23,9 +26,11 @@ import {
   FiEye,
   FiInfo,
   FiClipboard,
-  FiList
+  FiList,
+  FiClock,
+  FiMessageSquare
 } from 'react-icons/fi'
-import { formatNairobiDateTime } from '@/utils/dateUtils'
+import { formatNairobiDateTime, formatCompactNairobiDateTime } from '@/utils/dateUtils'
 // IMPORT THE LOGO DIRECTLY
 import ncbaLogo from '@/assets/NCBALogo.png'
 
@@ -37,12 +42,12 @@ const deepClone = <T,>(obj: T): T => {
 // Helper function to get value with case-insensitive access
 const getValue = (obj: any, key: string): any => {
   if (!obj) return undefined
-  
+
   if (obj[key] !== undefined && obj[key] !== null) return obj[key]
-  
+
   const pascalKey = key.charAt(0).toUpperCase() + key.slice(1)
   if (obj[pascalKey] !== undefined && obj[pascalKey] !== null) return obj[pascalKey]
-  
+
   return undefined
 }
 
@@ -63,16 +68,29 @@ const getBase64ImageFromUrl = async (imageUrl: string): Promise<string> => {
   }
 }
 
+// Helper function to transform comment data
+const transformComment = (comment: any): Comment => ({
+  id: comment.id || comment._id || '',
+  reportId: comment.reportId || comment.ReportId || '',
+  userId: comment.userId || comment.UserId || '',
+  userName: comment.userName || comment.UserName || 'Unknown',
+  userRole: comment.userRole || comment.UserRole || '',
+  text: comment.text || comment.Text || '',
+  content: comment.text || comment.Text || '',
+  isInternal: comment.isInternal || comment.IsInternal || false,
+  createdAt: comment.createdAt || comment.CreatedAt || new Date().toISOString()
+})
+
 // Direct status extractor
 const getReportStatus = (checklist: any): string => {
   if (!checklist) return 'pending'
-  
+
   if (checklist.status) return checklist.status.toLowerCase()
   if (checklist.Status) return checklist.Status.toLowerCase()
-  
+
   const status = getValue(checklist, 'status')
   if (status) return status.toLowerCase()
-  
+
   return 'pending'
 }
 
@@ -97,6 +115,11 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     draft: { label: 'Draft', color: 'text-[#40534C]', bgColor: 'bg-[#D6BD98]/20' },
     submitted: { label: 'QS Review', color: 'text-[#1A3636]', bgColor: 'bg-[#D6BD98]/30' },
     rework: { label: 'Rework', color: 'text-orange-700', bgColor: 'bg-orange-100' },
+    [REPORT_STATUS.SITE_VISIT_SCHEDULED]: {
+      label: 'Site Visit Scheduled',
+      color: 'text-[#40534C]',
+      bgColor: 'bg-[#F0E2CC]'
+    },
     approved: { label: 'Approved', color: 'text-white', bgColor: 'bg-[#677D6A]' },
     rejected: { label: 'Rejected', color: 'text-red-600', bgColor: 'bg-red-100' },
   }
@@ -127,7 +150,11 @@ export const ReportViewPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState('customer-info')
   const [isDownloading, setIsDownloading] = useState(false)
   const [logoBase64, setLogoBase64] = useState<string>('')
-  
+  const [comments, setComments] = useState<Comment[]>([])
+  const [isLoadingComments, setIsLoadingComments] = useState(false)
+
+  const commentsContainerRef = useRef<HTMLDivElement>(null)
+
   const { data: checklist, isLoading, error, refetch } = useGetChecklistByIdQuery(id!, {
     skip: !id,
     refetchOnMountOrArgChange: true
@@ -146,9 +173,39 @@ export const ReportViewPage: React.FC = () => {
         console.error('Failed to load logo:', error)
       }
     }
-    
+
     loadLogo()
   }, [])
+
+  // Fetch comments
+  useEffect(() => {
+    if (id) {
+      fetchComments()
+    }
+  }, [id])
+
+  // Scroll comments to top when new comments added
+  useEffect(() => {
+    if (commentsContainerRef.current) {
+      commentsContainerRef.current.scrollTop = 0
+    }
+  }, [comments])
+
+  const fetchComments = async () => {
+    setIsLoadingComments(true)
+    try {
+      const response = await axiosInstance.get(`/qs/reviews/${id}/comments`)
+      const fetchedComments = (response.data || []).map(transformComment)
+      fetchedComments.sort((a: Comment, b: Comment) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      )
+      setComments(fetchedComments)
+    } catch (error) {
+      console.log('No comments available')
+    } finally {
+      setIsLoadingComments(false)
+    }
+  }
 
   useEffect(() => {
     const returnPath = sessionStorage.getItem('rmReportsReturnPath') || '/rm/reports'
@@ -164,7 +221,7 @@ export const ReportViewPage: React.FC = () => {
 
   const handleDownloadPDF = async () => {
     if (!checklist) return
-    
+
     setIsDownloading(true)
     try {
       let formData: any = {}
@@ -204,13 +261,13 @@ export const ReportViewPage: React.FC = () => {
       }
 
       const doc = generateSiteVisitReportPDF(
-        formData, 
+        formData,
         reportNumber,
         logoBase64,
         reportStatus,
         undefined
       )
-      
+
       doc.save(`Site_Visit_Report_${reportNumber}_${new Date().toISOString().split('T')[0]}.pdf`)
       toast.success('PDF downloaded successfully!')
     } catch (error) {
@@ -398,7 +455,7 @@ export const ReportViewPage: React.FC = () => {
 
       <div className="border-t border-[#D6BD98]/10"></div>
 
-      {/* UPDATED: Drawdown Funds with multiple drawdowns */}
+      {/* Drawdown Funds with multiple drawdowns */}
       <div>
         <h3 className="text-[10px] font-bold text-[#1A3636] uppercase tracking-wider mb-2">Drawdown Funds</h3>
         <div className="space-y-2">
@@ -521,7 +578,7 @@ export const ReportViewPage: React.FC = () => {
 
       <div className="border-t border-[#D6BD98]/10"></div>
 
-      {/* UPDATED: Drawdown Details with multiple drawdowns */}
+      {/* Drawdown Details with multiple drawdowns */}
       <div>
         <h3 className="text-[10px] font-bold text-[#1A3636] uppercase tracking-wider mb-2">Drawdown Details</h3>
         <div className="space-y-2">
@@ -587,11 +644,10 @@ export const ReportViewPage: React.FC = () => {
                 <div key={doc.key} className="py-1.5 border-b border-[#D6BD98]/10 last:border-0">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-[#40534C]">{doc.label}</span>
-                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-medium ${
-                      status === 'Yes' ? 'bg-emerald-100 text-emerald-700' :
+                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-medium ${status === 'Yes' ? 'bg-emerald-100 text-emerald-700' :
                       status === 'No' ? 'bg-amber-100 text-amber-700' :
-                      'bg-gray-100 text-gray-700'
-                    }`}>
+                        'bg-gray-100 text-gray-700'
+                      }`}>
                       {status || '—'}
                     </span>
                   </div>
@@ -694,6 +750,24 @@ export const ReportViewPage: React.FC = () => {
     <div className="min-h-screen bg-white">
       {/* Header */}
       <div className="sticky top-0 z-20 bg-white border-b border-[#D6BD98]/10 shadow-sm">
+        {/* Site Visit Scheduled Banner */}
+        {status === REPORT_STATUS.SITE_VISIT_SCHEDULED && (
+          <div className="bg-accent-200 border-y border-accent-300">
+            <div className="px-3 lg:px-4 py-2">
+              <div className="flex items-center gap-2">
+                <FiMapPin className="w-3 h-3 text-primary-600" />
+                <span className="text-[9px] text-primary-600 font-medium">
+                  Waiting for QS Site Visit
+                </span>
+                {getValue(checklist, 'siteVisitNotes') && (
+                  <span className="text-[8px] text-primary-600 truncate">
+                    Notes: {getValue(checklist, 'siteVisitNotes')}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         <div className="px-3 lg:px-4 py-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -759,14 +833,91 @@ export const ReportViewPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="px-3 lg:px-4 py-3">
-        {activeTab === 'customer-info' && renderCustomerInfoTab()}
-        {activeTab === 'site-visit' && renderSiteVisitTab()}
-        {activeTab === 'project-info' && renderProjectInfoTab()}
-        {activeTab === 'financial' && renderFinancialTab()}
-        {activeTab === 'documents' && renderDocumentsTab()}
-        {activeTab === 'photos' && renderPhotosTab()}
+      {/* Main Content - 70/30 Split */}
+      <div className="flex flex-col lg:flex-row">
+        {/* Left Column - Main Content (70%) */}
+        <div className="lg:w-[70%] px-3 lg:px-4 py-3 bg-white">
+          {activeTab === 'customer-info' && renderCustomerInfoTab()}
+          {activeTab === 'site-visit' && renderSiteVisitTab()}
+          {activeTab === 'project-info' && renderProjectInfoTab()}
+          {activeTab === 'financial' && renderFinancialTab()}
+          {activeTab === 'documents' && renderDocumentsTab()}
+          {activeTab === 'photos' && renderPhotosTab()}
+        </div>
+
+        {/* Right Column - Comments Sidebar (30%) */}
+        <div className="lg:w-[30%] bg-white border-l border-[#D6BD98]/10">
+          <div className="sticky top-[90px] h-[calc(100vh-90px)] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="px-3 py-2 border-b border-[#D6BD98]/10 bg-white">
+              <div className="flex items-center justify-between">
+                <h3 className="text-[9px] font-bold text-[#1A3636] uppercase tracking-wider">
+                  Comments
+                </h3>
+                <span className="text-[8px] text-[#677D6A] bg-[#F5F7F4] px-1.5 py-0.5 rounded">
+                  {comments.length}
+                </span>
+              </div>
+            </div>
+
+            {/* Scrollable Comments Container */}
+            <div
+              ref={commentsContainerRef}
+              className="flex-1 overflow-y-auto bg-white"
+            >
+              {isLoadingComments ? (
+                <div className="flex justify-center py-6">
+                  <div className="w-4 h-4 border-2 border-[#677D6A] border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              ) : comments.length === 0 ? (
+                <div className="text-center py-8">
+                  <FiMessageSquare className="w-4 h-4 text-[#D6BD98] mx-auto mb-1" />
+                  <p className="text-[9px] text-[#677D6A]">No comments</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-[#D6BD98]/5">
+                  {comments.map((comment, index) => {
+                    const isLatest = index === 0
+
+                    return (
+                      <div
+                        key={comment.id || `comment-${index}`}
+                        className={`px-3 py-2 hover:bg-[#F5F7F4]/30 transition-colors ${isLatest ? 'bg-[#F5F7F4]/50' : ''
+                          }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[9px] font-bold text-[#1A3636]">
+                              {comment.userName}
+                            </span>
+                            <span className="text-[7px] font-medium text-[#677D6A] bg-white px-1 py-0.5 rounded border border-[#D6BD98]/10">
+                              {comment.userRole}
+                            </span>
+                            {isLatest && (
+                              <span className="text-[6px] font-medium text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded">
+                                New
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-0.5 text-[#677D6A]">
+                            <FiClock className="w-2 h-2" />
+                            <span className="text-[7px] whitespace-nowrap">
+                              {formatCompactNairobiDateTime(comment.createdAt)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <p className="text-[9px] text-[#40534C] leading-relaxed">
+                          {comment.text}
+                        </p>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )

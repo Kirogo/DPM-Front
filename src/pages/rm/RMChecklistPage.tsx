@@ -6,6 +6,7 @@ import { useGetAllRmChecklistsQuery } from '@/services/api/checklistsApi'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { RMChecklistCreator } from './RMChecklistCreator'
 import { formatNairobiDate } from '@/utils/dateUtils'
+import { REPORT_STATUS, STATUS_CONFIG } from '@/constants/reportStatus'
 import {
   FileText,
   Plus,
@@ -16,28 +17,15 @@ import {
   Briefcase,
   CreditCard,
   Hash,
-  Calendar
+  Calendar,
+  MapPin,
+  Clock
 } from 'lucide-react'
 
-// Status badge component - REDUCED SIZE
+// Status badge component - Using centralized config
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   const statusLower = status?.toLowerCase() || 'pending'
-  
-  const statusConfig: Record<string, { label: string; color: string; bgColor: string }> = {
-    pending: { label: 'Pending', color: 'text-[#677D6A]', bgColor: 'bg-[#677D6A]/10' },
-    draft: { label: 'Draft', color: 'text-[#40534C]', bgColor: 'bg-[#D6BD98]/20' },
-    submitted: { label: 'QS Review', color: 'text-[#1A3636]', bgColor: 'bg-[#D6BD98]/30' },
-    rework: { label: 'Rework', color: 'text-orange-700', bgColor: 'bg-orange-100' },
-    approved: { label: 'Approved', color: 'text-white', bgColor: 'bg-[#677D6A]' },
-    rejected: { label: 'Rejected', color: 'text-red-600', bgColor: 'bg-red-100' },
-    pending_qs_review: { label: 'QS Review', color: 'text-[#1A3636]', bgColor: 'bg-[#D6BD98]/30' },
-    pendingqsreview: { label: 'QS Review', color: 'text-[#1A3636]', bgColor: 'bg-[#D6BD98]/30' },
-    revision_requested: { label: 'Rework', color: 'text-orange-700', bgColor: 'bg-orange-100' },
-    returned: { label: 'Rework', color: 'text-orange-700', bgColor: 'bg-orange-100' },
-    completed: { label: 'Approved', color: 'text-white', bgColor: 'bg-[#677D6A]' },
-  }
-
-  const config = statusConfig[statusLower] || statusConfig.pending
+  const config = STATUS_CONFIG[statusLower] || STATUS_CONFIG.pending
 
   return (
     <span className={`${config.bgColor} ${config.color} px-1.5 py-0.5 rounded-full text-[7px] lg:text-[9px] font-medium whitespace-nowrap`}>
@@ -86,7 +74,7 @@ const getPageTitle = (statusFilter: string | null): string => {
     case 'submitted':
       return 'QS Review'
     case 'rework':
-      return 'Rework Required'
+      return 'Rework & Site Visits'  // Updated title
     case 'approved':
       return 'Approved Reports'
     case 'rejected':
@@ -109,7 +97,7 @@ const getStatusDescription = (statusFilter: string | null, count: number): strin
       case 'draft': return 'No draft reports'
       case 'pending': return 'No pending reports'
       case 'submitted': return 'No reports pending QS review'
-      case 'rework': return 'No reports needing rework'
+      case 'rework': return 'No reports needing attention'
       case 'approved': return 'No approved reports'
       case 'rejected': return 'No rejected reports'
       default: return 'No reports found'
@@ -126,7 +114,7 @@ const getStatusDescription = (statusFilter: string | null, count: number): strin
     case 'submitted':
       return `${count} ${reportText} pending QS review`
     case 'rework':
-      return `${count} ${reportText} marked for rework`
+      return `${count} ${reportText} requiring attention`  // Updated description
     case 'approved':
       return `${count} approved ${reportText}`
     case 'rejected':
@@ -143,7 +131,8 @@ const isReadOnlyStatus = (status: string): boolean => {
          lowerStatus === 'approved' || 
          lowerStatus === 'pending_qs_review' || 
          lowerStatus === 'pendingqsreview' ||
-         lowerStatus === 'completed'
+         lowerStatus === 'completed' ||
+         lowerStatus === REPORT_STATUS.SITE_VISIT_SCHEDULED  // Add site visit scheduled as read-only
 }
 
 export const RMChecklistPage: React.FC = () => {
@@ -205,20 +194,36 @@ export const RMChecklistPage: React.FC = () => {
 
   const mapStatusForFilter = (status: string): string => {
     const lowerStatus = status.toLowerCase()
+    
+    // Map various statuses to filter categories
+    if (lowerStatus === REPORT_STATUS.SITE_VISIT_SCHEDULED) return 'rework'  // Show in rework tab
     if (['pending_qs_review', 'pendingqsreview'].includes(lowerStatus)) return 'submitted'
     if (['revision_requested', 'returned'].includes(lowerStatus)) return 'rework'
     if (lowerStatus === 'completed') return 'approved'
     return lowerStatus
   }
 
+  // Filter checklists based on status and search
   const filteredChecklists = checklists?.filter(checklist => {
+    // Handle status filtering
     if (urlStatus && urlStatus !== 'all') {
       const checklistStatus = mapStatusForFilter(checklist.status || '')
-      if (checklistStatus !== urlStatus) {
+      
+      // Special handling for rework tab - show both rework AND site_visit_scheduled
+      if (urlStatus === 'rework') {
+        const lowerStatus = (checklist.status || '').toLowerCase()
+        if (lowerStatus !== 'rework' && 
+            lowerStatus !== 'revision_requested' && 
+            lowerStatus !== 'returned' &&
+            lowerStatus !== REPORT_STATUS.SITE_VISIT_SCHEDULED) {
+          return false
+        }
+      } else if (checklistStatus !== urlStatus) {
         return false
       }
     }
     
+    // Search filtering
     const reportNo = getValue(checklist, 'callReportNo') || getValue(checklist, 'dclNo')
     const customerName = getValue(checklist, 'customerName')
     const projectName = getValue(checklist, 'projectName')
@@ -318,7 +323,7 @@ export const RMChecklistPage: React.FC = () => {
               <option value="draft">Draft</option>
               <option value="pending">Pending</option>
               <option value="submitted">QS Review</option>
-              <option value="rework">Rework</option>
+              <option value="rework">Rework & Site Visits</option>
               <option value="approved">Approved</option>
               <option value="rejected">Rejected</option>
             </select>
@@ -351,6 +356,7 @@ export const RMChecklistPage: React.FC = () => {
                 const projectName = getValue(checklist, 'projectName')
                 const ibpsNo = getValue(checklist, 'ibpsNo')
                 const status = getValue(checklist, 'status') || 'pending'
+                const isSiteVisit = status.toLowerCase() === REPORT_STATUS.SITE_VISIT_SCHEDULED
                 
                 return (
                   <div
@@ -375,11 +381,16 @@ export const RMChecklistPage: React.FC = () => {
                     </div>
 
                     {/* Additional info row for mobile */}
-                    {(projectName || ibpsNo) && (
+                    {(projectName || ibpsNo || isSiteVisit) && (
                       <div className="mt-1 flex items-center gap-2 text-[6px] text-[#677D6A]">
                         {projectName && (
                           <span className="flex items-center gap-0.5 truncate">
                             <Briefcase className="w-2 h-2" /> {projectName}
+                          </span>
+                        )}
+                        {isSiteVisit && (
+                          <span className="flex items-center gap-0.5 text-accent-600">
+                            <MapPin className="w-2 h-2" /> Site Visit Scheduled
                           </span>
                         )}
                       </div>
@@ -403,7 +414,7 @@ export const RMChecklistPage: React.FC = () => {
             </div>
           </div>
         ) : (
-          /* Desktop: Clean table with ADDED COLUMNS - Customer No, IBPS No, Project, RM */
+          /* Desktop: Clean table with ADDED COLUMNS */
           <div className="border border-[#D6BD98]/20 rounded-lg overflow-hidden bg-white">
             <div className="grid grid-cols-12 gap-1 px-3 py-2 bg-[#F5F7F4] border-b border-[#D6BD98]/20 text-[9px] font-bold text-[#40534C] uppercase tracking-wider">
               <div className="col-span-1">Report</div>
@@ -413,7 +424,7 @@ export const RMChecklistPage: React.FC = () => {
               <div className="col-span-2">Project</div>
               <div className="col-span-2">RM</div>
               <div className="col-span-1">Updated</div>
-              <div className="col-span-1">Status</div>
+              <div className="col-span-2">Status</div>
             </div>
 
             <div className="divide-y divide-[#D6BD98]/10">
@@ -426,6 +437,7 @@ export const RMChecklistPage: React.FC = () => {
                 const ibpsNo = getValue(checklist, 'ibpsNo')
                 const rmName = getValue(checklist, 'rmName') || getValue(checklist, 'assignedToRM') || '—'
                 const status = getValue(checklist, 'status') || 'pending'
+                const isSiteVisit = status.toLowerCase() === REPORT_STATUS.SITE_VISIT_SCHEDULED
                 
                 return (
                   <div
@@ -456,6 +468,9 @@ export const RMChecklistPage: React.FC = () => {
                     <div className="col-span-2 text-[#677D6A] truncate text-[10px] flex items-center gap-1">
                       <User className="w-2.5 h-2.5 flex-shrink-0" />
                       <span className="truncate">{rmName}</span>
+                      {isSiteVisit && (
+                        <MapPin className="w-3 h-3 text-accent-500 flex-shrink-0 ml-1" title="Site Visit Scheduled" />
+                      )}
                     </div>
 
                     <div className="col-span-1 text-[#677D6A] text-[9px] flex items-center gap-1">
@@ -463,7 +478,7 @@ export const RMChecklistPage: React.FC = () => {
                       {formatNairobiDate(getValue(checklist, 'updatedAt') || getValue(checklist, 'createdAt'))}
                     </div>
 
-                    <div className="col-span-1">
+                    <div className="col-span-2">
                       <StatusBadge status={status} />
                     </div>
                   </div>

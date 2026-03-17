@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
 import { RMChecklistCreator } from './RMChecklistCreator'
 import { formatNairobiDate } from '@/utils/dateUtils'
+import { REPORT_STATUS, STATUS_CONFIG } from '@/constants/reportStatus'
 import { 
   FiPlus,
   FiSearch,
@@ -18,26 +19,23 @@ import {
   FiCreditCard,
   FiCalendar,
   FiChevronLeft,
-  FiChevronRight
+  FiChevronRight,
+  FiMapPin
 } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 
 type TabType = 'new' | 'qs-review' | 'rework'
 
-// Status badge component - REDUCED SIZE
+// Status badge component - Using centralized config with fallback
 const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
   const statusLower = status?.toLowerCase() || 'pending'
   
-  const statusConfig: Record<string, { label: string; color: string; bgColor: string }> = {
-    pending: { label: 'Pending', color: 'text-[#677D6A]', bgColor: 'bg-[#677D6A]/10' },
-    draft: { label: 'Draft', color: 'text-[#40534C]', bgColor: 'bg-[#D6BD98]/20' },
-    submitted: { label: 'QS Review', color: 'text-[#1A3636]', bgColor: 'bg-[#D6BD98]/30' },
-    rework: { label: 'Rework', color: 'text-orange-700', bgColor: 'bg-orange-100' },
-    approved: { label: 'Approved', color: 'text-white', bgColor: 'bg-[#677D6A]' },
-    rejected: { label: 'Rejected', color: 'text-red-600', bgColor: 'bg-red-100' },
+  // Ensure STATUS_CONFIG exists, provide fallback if not
+  const config = STATUS_CONFIG?.[statusLower] || { 
+    label: status || 'Pending', 
+    color: 'text-[#677D6A]', 
+    bgColor: 'bg-[#677D6A]/10' 
   }
-
-  const config = statusConfig[statusLower] || statusConfig.pending
 
   return (
     <span className={`${config.bgColor} ${config.color} px-1.5 py-0.5 rounded-full text-[7px] lg:text-[9px] font-medium whitespace-nowrap`}>
@@ -78,6 +76,19 @@ const Pagination: React.FC<{
     </div>
   );
 };
+
+// Function to check if a report should be read-only
+const isReadOnlyStatus = (status: string): boolean => {
+  const lowerStatus = status?.toLowerCase()
+  return lowerStatus === 'submitted' || 
+         lowerStatus === 'approved' || 
+         lowerStatus === 'pending_qs_review' || 
+         lowerStatus === 'pendingqsreview' ||
+         lowerStatus === 'completed' ||
+         lowerStatus === 'under_review' ||
+         lowerStatus === 'underreview' ||
+         lowerStatus === REPORT_STATUS?.SITE_VISIT_SCHEDULED
+}
 
 export const RMReportsPage: React.FC = () => {
   const navigate = useNavigate()
@@ -137,19 +148,34 @@ export const RMReportsPage: React.FC = () => {
     toast.success('Reports refreshed')
   }
 
-  const handleView = (reportId: string) => {
+  const handleView = (reportId: string, status: string) => {
     sessionStorage.setItem('rmReportsReturnPath', '/rm/reports')
-    navigate(`/rm/checklists/${reportId}`)
+    
+    if (isReadOnlyStatus(status)) {
+      navigate(`/rm/reports/${reportId}/view`)
+    } else {
+      navigate(`/rm/checklists/${reportId}`)
+    }
   }
 
   // Filter reports based on active tab and search
   const filteredReports = myReports.filter(report => {
     const status = report.status?.toLowerCase() || ''
     
+    // Tab filtering
     if (activeTab === 'new' && status !== 'pending') return false
     if (activeTab === 'qs-review' && status !== 'submitted') return false
-    if (activeTab === 'rework' && status !== 'rework') return false
+    if (activeTab === 'rework') {
+      // Rework tab shows both rework AND site_visit_scheduled
+      if (status !== 'rework' && 
+          status !== 'revision_requested' && 
+          status !== 'returned' &&
+          status !== REPORT_STATUS?.SITE_VISIT_SCHEDULED) {
+        return false
+      }
+    }
     
+    // Search filtering
     const matchesSearch = searchTerm === '' || 
       report.reportNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       report.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -170,7 +196,13 @@ export const RMReportsPage: React.FC = () => {
   const tabCounts = {
     new: myReports.filter(r => r.status?.toLowerCase() === 'pending').length,
     'qs-review': myReports.filter(r => r.status?.toLowerCase() === 'submitted').length,
-    rework: myReports.filter(r => r.status?.toLowerCase() === 'rework').length
+    rework: myReports.filter(r => {
+      const status = r.status?.toLowerCase() || ''
+      return status === 'rework' || 
+             status === 'revision_requested' || 
+             status === 'returned' ||
+             status === REPORT_STATUS?.SITE_VISIT_SCHEDULED
+    }).length
   }
 
   if (isLoading) {
@@ -317,43 +349,51 @@ export const RMReportsPage: React.FC = () => {
                   <p className="text-[9px] text-[#40534C]">No reports found</p>
                 </div>
               ) : (
-                paginatedReports.map((report) => (
-                  <div
-                    key={report.id}
-                    onClick={() => handleView(report.id)}
-                    className="p-2 border-b border-[#D6BD98]/10 last:border-0 hover:bg-[#D6BD98]/5 transition-colors cursor-pointer active:bg-[#D6BD98]/10"
-                  >
-                    <div className="grid grid-cols-4 gap-1 text-[9px] items-center">
-                      <div className="col-span-1 text-[#1A3636] truncate">
-                        {report.reportNo || '—'}
+                paginatedReports.map((report) => {
+                  const isSiteVisit = report.status?.toLowerCase() === REPORT_STATUS?.SITE_VISIT_SCHEDULED
+                  
+                  return (
+                    <div
+                      key={report.id}
+                      onClick={() => handleView(report.id, report.status || 'pending')}
+                      className="p-2 border-b border-[#D6BD98]/10 last:border-0 hover:bg-[#D6BD98]/5 transition-colors cursor-pointer active:bg-[#D6BD98]/10"
+                    >
+                      <div className="grid grid-cols-4 gap-1 text-[9px] items-center">
+                        <div className="col-span-1 text-[#1A3636] truncate">
+                          {report.reportNo || '—'}
+                        </div>
+
+                        <div className="col-span-1 text-[#40534C] truncate text-[9px]">
+                          {report.customerName || report.clientName || '—'}
+                        </div>
+
+                        <div className="col-span-1">
+                          <StatusBadge status={report.status || 'pending'} />
+                        </div>
+
+                        <div className="col-span-1 text-[8px] text-[#677D6A] whitespace-nowrap text-right">
+                          {formatNairobiDate(report.updatedAt || report.createdAt)}
+                        </div>
                       </div>
 
-                      <div className="col-span-1 text-[#40534C] truncate text-[9px]">
-                        {report.customerName || report.clientName || '—'}
-                      </div>
-
-                      <div className="col-span-1">
-                        <StatusBadge status={report.status || 'pending'} />
-                      </div>
-
-                      <div className="col-span-1 text-[8px] text-[#677D6A] whitespace-nowrap text-right">
-                        {formatNairobiDate(report.updatedAt || report.createdAt)}
-                      </div>
+                      {/* Additional info row for mobile */}
+                      {(report.ibpsNo || report.projectName || isSiteVisit) && (
+                        <div className="mt-1 flex items-center gap-2 text-[6px] text-[#677D6A]">
+                          {report.projectName && (
+                            <span className="flex items-center gap-0.5 truncate">
+                              {report.projectName}
+                            </span>
+                          )}
+                          {isSiteVisit && (
+                            <span className="flex items-center gap-0.5 text-[#D6BD98]">
+                              <FiMapPin className="w-2 h-2" /> Site Visit Scheduled
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
-
-                    {/* Additional info row for mobile */}
-                    {(report.ibpsNo || report.projectName) && (
-                      <div className="mt-1 flex items-center gap-2 text-[6px] text-[#677D6A]">
-                        {report.projectName && (
-                          <span className="flex items-center gap-0.5 truncate">
-                           {report.projectName}
-                          </span>
-                        )}
-                      
-                      </div>
-                    )}
-                  </div>
-                ))
+                  )
+                })
               )}
             </div>
           </div>
@@ -361,7 +401,7 @@ export const RMReportsPage: React.FC = () => {
           /* Desktop view - ADDED COLUMNS */
           <div className="border border-[#D6BD98]/20 rounded-lg overflow-hidden bg-white">
             <div className="grid grid-cols-12 gap-1 px-3 py-2 bg-[#F5F7F4] border-b border-[#D6BD98]/20 text-[9px] font-bold text-[#40534C] uppercase tracking-wider">
-              <div className="col-span-2">Report</div>
+              <div className="col-span-1">Report</div>
               <div className="col-span-3">Customer</div>
               <div className="col-span-1">Cus No</div>
               <div className="col-span-1">IBPS No</div>
@@ -377,41 +417,46 @@ export const RMReportsPage: React.FC = () => {
                     No reports found
                   </div>
                 ) : (
-                  paginatedReports.map((report) => (
-                    <div
-                      key={report.id}
-                      onClick={() => handleView(report.id)}
-                      className="grid grid-cols-12 gap-1 px-3 py-2 hover:bg-[#D6BD98]/5 transition-colors cursor-pointer text-xs"
-                    >
-                      <div className="col-span-2 text-[#1A3636] truncate text-[11px] italic">
-                        {report.reportNo || '—'}
-                      </div>
+                  paginatedReports.map((report) => {
+                    const isSiteVisit = report.status?.toLowerCase() === REPORT_STATUS?.SITE_VISIT_SCHEDULED
+                    
+                    return (
+                      <div
+                        key={report.id}
+                        onClick={() => handleView(report.id, report.status || 'pending')}
+                        className="grid grid-cols-12 gap-1 px-3 py-2 hover:bg-[#D6BD98]/5 transition-colors cursor-pointer text-xs"
+                      >
+                        <div className="col-span-1 text-[#1A3636] truncate text-[11px] italic flex items-center gap-1">
+                          
+                          {report.reportNo || '—'}
+                        </div>
 
-                      <div className="col-span-3 text-[#40534C] truncate text-[11px]">
-                        {report.customerName || report.clientName || '—'}
-                      </div>
+                        <div className="col-span-3 text-[#40534C] truncate text-[11px]">
+                          {report.customerName || report.clientName || '—'}
+                        </div>
 
-                      <div className="col-span-1 text-[#677D6A] truncate text-[10px]">
-                        {report.customerNumber || '—'}
-                      </div>
+                        <div className="col-span-1 text-[#677D6A] truncate text-[10px]">
+                          {report.customerNumber || '—'}
+                        </div>
 
-                      <div className="col-span-1 text-[#677D6A] truncate text-[10px]">
-                        {report.ibpsNo || '—'}
-                      </div>
+                        <div className="col-span-1 text-[#677D6A] truncate text-[10px]">
+                          {report.ibpsNo || '—'}
+                        </div>
 
-                      <div className="col-span-3 text-[#40534C] truncate text-[10px]">
-                        {report.projectName || report.title || '—'}
-                      </div>
+                        <div className="col-span-3 text-[#40534C] truncate text-[10px]">
+                          {report.projectName || report.title || '—'}
+                        </div>
 
-                      <div className="col-span-1 text-[#677D6A] text-[9px]">
-                        {formatNairobiDate(report.updatedAt || report.createdAt)}
-                      </div>
+                        <div className="col-span-1 text-[#677D6A] text-[9px]">
+                          {formatNairobiDate(report.updatedAt || report.createdAt)}
+                        </div>
 
-                      <div className="col-span-1">
-                        <StatusBadge status={report.status || 'pending'} />
+                        <div className="col-span-1">
+                          <StatusBadge status={report.status || 'pending'} />
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    )
+                  })
                 )}
               </div>
             </div>

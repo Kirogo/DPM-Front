@@ -24,7 +24,7 @@ export const REPORT_STATUS = {
 
 export type ReportStatus = typeof REPORT_STATUS[keyof typeof REPORT_STATUS];
 
-// Status badge configuration matching your system colors exactly
+// Status badge configuration - DISTINCT COLORS for each status
 export const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {
   // Draft states
   [REPORT_STATUS.DRAFT]: { 
@@ -49,31 +49,31 @@ export const STATUS_CONFIG: Record<string, { label: string; color: string; bgCol
   [REPORT_STATUS.UNDER_REVIEW]: { 
     label: 'Under Review', 
     color: 'text-[#40534C]', 
-    bgColor: 'bg-[#D6BD98]/20' 
+    bgColor: 'bg-[#D6BD98]/40' 
   },
   
-  // Site Visit
+  // Site Visit - DISTINCT COLOR (not orange like rework)
   [REPORT_STATUS.SITE_VISIT_SCHEDULED]: { 
     label: 'Site Visit Scheduled', 
     color: 'text-[#40534C]', 
-    bgColor: 'bg-[#D6BD98]/30' 
+    bgColor: 'bg-[#F0E2CC]'  // Solid accent color
   },
   
-  // Rework states
+  // Rework states - ORANGE (keep existing)
   [REPORT_STATUS.REWORK]: { 
     label: 'Rework', 
-    color: 'text-[#40534C]', 
-    bgColor: 'bg-[#D6BD98]/40' 
+    color: 'text-orange-700', 
+    bgColor: 'bg-orange-100' 
   },
   [REPORT_STATUS.REVISION_REQUESTED]: { 
     label: 'Rework', 
-    color: 'text-[#40534C]', 
-    bgColor: 'bg-[#D6BD98]/40' 
+    color: 'text-orange-700', 
+    bgColor: 'bg-orange-100' 
   },
   [REPORT_STATUS.RETURNED]: { 
     label: 'Rework', 
-    color: 'text-[#40534C]', 
-    bgColor: 'bg-[#D6BD98]/40' 
+    color: 'text-orange-700', 
+    bgColor: 'bg-orange-100' 
   },
   
   // Approved states
